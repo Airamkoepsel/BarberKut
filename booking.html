@@ -1,0 +1,716 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%230B1F3A%22/><text y=%22.9em%22 font-size=%2272%22 x=%2250%25%22 text-anchor=%22middle%22>✂</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="BarberKut — Agende seu horário em poucos passos."/>
+  <title>Agendar horário — BarberKut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="css/upgrade.css"/>
+  <style>
+    .logo-nav { height:28px; width:auto; }
+
+    /* ══════════════════════════════════════════════════════
+       TELA 0 — hero escuro + dois cartões
+    ══════════════════════════════════════════════════════ */
+    .booking-hero {
+      position: relative;
+      background: linear-gradient(135deg, #0B1F3A 0%, #1A1A2E 50%, #2D1B69 100%);
+      overflow: hidden;
+      padding: calc(var(--nav-height) + var(--space-16)) 0 var(--space-20);
+      text-align: center;
+    }
+    .booking-hero::before {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(229,56,59,.18), transparent 40%),
+        radial-gradient(circle at 80% 10%, rgba(45,27,105,.28), transparent 45%),
+        radial-gradient(circle at 55% 85%, rgba(26,58,107,.20), transparent 40%);
+      animation: meshFloat 14s ease-in-out infinite alternate;
+    }
+    .booking-hero::after {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background-image: radial-gradient(rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    .booking-hero__inner {
+      position: relative;
+      z-index: 2;
+      max-width: var(--container-xl);
+      margin-inline: auto;
+      padding-inline: var(--space-6);
+    }
+    .booking-hero__tag {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.5);
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.12);
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-full);
+      backdrop-filter: blur(8px);
+      margin-bottom: var(--space-5);
+    }
+    .booking-hero__title {
+      font-size: clamp(var(--text-2xl), 4vw, var(--text-4xl));
+      font-weight: 800;
+      letter-spacing: -.035em;
+      color: #FFF;
+      line-height: 1.1;
+      margin-bottom: var(--space-4);
+    }
+    .booking-hero__title em {
+      font-style: normal;
+      background: linear-gradient(120deg, #FF6B81, #E5383B);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .booking-hero__sub {
+      font-size: var(--text-md);
+      color: rgba(255,255,255,.55);
+      max-width: 400px;
+      margin-inline: auto;
+      line-height: var(--lh-relaxed);
+    }
+
+    /* Cartões flutuando abaixo do hero */
+    .cards-float {
+      position: relative;
+      z-index: 10;
+      max-width: 880px;
+      margin-inline: auto;
+      padding-inline: var(--space-6);
+      margin-top: calc(-1 * var(--space-12));
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0;
+      align-items: center;
+    }
+
+    /* Cartão IA */
+    .card-ia {
+      background: linear-gradient(140deg, #0B1F3A 0%, #1A1A2E 55%, #2D1B69 100%);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-8);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+      color: #FFF;
+      box-shadow: 0 24px 60px rgba(11,31,58,.45), inset 0 1px 0 rgba(255,255,255,.08);
+      position: relative;
+      overflow: hidden;
+      transition: transform var(--transition-spring), box-shadow var(--transition-spring);
+    }
+    .card-ia::before {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(circle at 15% 25%, rgba(229,56,59,.14), transparent 50%),
+        radial-gradient(circle at 85% 75%, rgba(45,27,105,.18), transparent 50%);
+    }
+    .card-ia > * { position: relative; z-index: 1; }
+    .card-ia:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 32px 80px rgba(11,31,58,.55), inset 0 1px 0 rgba(255,255,255,.1);
+    }
+    .card-ia__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #FF6B81;
+      background: rgba(229,56,59,.15);
+      border: 1px solid rgba(229,56,59,.25);
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-full);
+      width: fit-content;
+    }
+    .card-ia__title {
+      font-size: var(--text-2xl);
+      font-weight: 800;
+      letter-spacing: -.03em;
+      color: #FFF;
+      line-height: 1.15;
+    }
+    .card-ia__desc {
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,.6);
+      line-height: var(--lh-relaxed);
+    }
+    .card-ia__quota {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-xs);
+      color: rgba(255,255,255,.45);
+      padding-top: var(--space-2);
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+
+    /* Divisor "OU" */
+    .ou-divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+      align-self: stretch;
+    }
+    .ou-divider::before {
+      content: '';
+      position: absolute;
+      top: 32px; bottom: 32px;
+      left: 50%;
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.15) 30%, rgba(255,255,255,.15) 70%, transparent);
+    }
+    .ou-badge {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.15);
+      backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: rgba(255,255,255,.6);
+      letter-spacing: .02em;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Cartão Express */
+    .card-express {
+      background: var(--color-surface);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-8);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+      box-shadow: 0 24px 60px rgba(11,31,58,.14), 0 2px 8px rgba(11,31,58,.08);
+      transition: transform var(--transition-spring), box-shadow var(--transition-spring);
+    }
+    .card-express:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 32px 80px rgba(11,31,58,.18), 0 4px 12px rgba(11,31,58,.1);
+    }
+    .card-express__tag {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+    .card-express__title {
+      font-size: var(--text-2xl);
+      font-weight: 800;
+      letter-spacing: -.03em;
+      color: var(--color-navy);
+      line-height: 1.15;
+    }
+    .card-express__desc {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      line-height: var(--lh-relaxed);
+      margin-top: calc(-1 * var(--space-2));
+    }
+
+    /* Seletores de corte (pill customizado) */
+    .cut-pills { display: flex; flex-direction: column; gap: var(--space-2); }
+    .cut-pill {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-lg);
+      border: 1.5px solid var(--color-border);
+      cursor: pointer;
+      transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
+      user-select: none;
+    }
+    .cut-pill:has(input:checked) {
+      border-color: var(--color-navy);
+      background: rgba(11,31,58,.04);
+      box-shadow: 0 0 0 3px rgba(11,31,58,.07);
+    }
+    .cut-pill input { display: none; }
+    .cut-pill__dot {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--color-border);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: border-color var(--transition-fast), background-color var(--transition-fast);
+    }
+    .cut-pill:has(input:checked) .cut-pill__dot {
+      border-color: var(--color-navy);
+      background: var(--color-navy);
+    }
+    .cut-pill:has(input:checked) .cut-pill__dot::after {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #FFF;
+    }
+    .cut-pill__icon { font-size: 1.1rem; }
+    .cut-pill__name { flex: 1; font-size: var(--text-sm); font-weight: 600; color: var(--color-navy); }
+    .cut-pill__price { font-size: var(--text-sm); font-weight: 600; color: var(--color-text-muted); }
+
+    /* Addon barba */
+    .addon-check {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: background-color var(--transition-fast);
+      user-select: none;
+    }
+    .addon-check--dark  { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); }
+    .addon-check--light { background: var(--color-surface-2); border: 1px solid var(--color-border); }
+    .addon-check input  { display: none; }
+    .addon-check__box {
+      width: 20px; height: 20px;
+      border-radius: var(--radius-sm);
+      border: 2px solid currentColor;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 11px; font-weight: 800;
+      transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    }
+    .addon-check--dark  .addon-check__box { border-color: rgba(255,255,255,.3); color: #FFF; }
+    .addon-check--light .addon-check__box { border-color: var(--color-border); color: var(--color-navy); }
+    .addon-check:has(input:checked) .addon-check__box {
+      background: var(--color-navy);
+      border-color: var(--color-navy);
+      color: #FFF;
+    }
+    .addon-check--dark:has(input:checked) .addon-check__box {
+      background: var(--color-red);
+      border-color: var(--color-red);
+    }
+
+    /* ══════════════════════════════════════════════════════
+       FLUXO (Steps 1-3)
+    ══════════════════════════════════════════════════════ */
+    .booking-step { display: none; }
+    .booking-step.active { display: block; animation: fadeIn .25s ease both; }
+
+    /* Banner corte simulado */
+    .sim-banner {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-5);
+      background: rgba(11,31,58,.06);
+      border: 1px solid rgba(11,31,58,.1);
+      border-radius: var(--radius-xl);
+      margin-bottom: var(--space-6);
+      font-size: var(--text-sm);
+      color: var(--color-navy);
+    }
+
+    /* Barber card melhorado */
+    .barber-card { position: relative; }
+    .barber-card__avail {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .avail-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .avail-dot--green  { background: var(--color-green); box-shadow: 0 0 0 3px rgba(52,199,89,.2); }
+    .avail-dot--yellow { background: var(--color-yellow); box-shadow: 0 0 0 3px rgba(255,159,10,.2); }
+
+    /* Step header */
+    .step-header {
+      margin-bottom: var(--space-6);
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .step-header h4 { color: var(--color-navy); margin-bottom: var(--space-1); }
+    .step-header p  { font-size: var(--text-sm); margin: 0; }
+
+    @media (max-width: 680px) {
+      .booking-hero { padding-top: calc(var(--nav-height) + var(--space-10)); padding-bottom: var(--space-16); }
+      .cards-float  { grid-template-columns: 1fr; margin-top: calc(-1 * var(--space-8)); }
+      .ou-divider   { width: 100%; height: 40px; }
+      .ou-divider::before { top:50%; bottom:auto; left:0; right:0; width:auto; height:1px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav" id="mainNav">
+  <div class="nav__inner">
+    <a href="index.html" class="nav__logo">
+      <img src="img/logo_navy.png" alt="" aria-hidden="true" class="logo-nav"/>
+      Barber<span>Kut</span>
+    </a>
+    <div class="nav__links">
+      <a href="index.html"                    class="nav__link">Início</a>
+      <a href="index.html#discoverySection"   class="nav__link">Barbearias</a>
+      <a href="ai-simulator.html"             class="nav__link">Simulador IA</a>
+      <a href="admin.html"                    class="nav__link">Painel Admin</a>
+    </div>
+    <div class="nav__actions">
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Mudar para tema escuro" title="Alternar tema">
+      <span class="theme-toggle__icon">🌙</span>
+    </button>
+      <div class="avatar" title="Perfil">JS</div>
+    </div>
+    <button class="nav__hamburger" id="hbg" aria-label="Menu" onclick="toggleNav()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+<div class="nav__mobile-menu" id="mobileMenu">
+  <a href="index.html"        class="nav__mobile-link">🏠 Início</a>
+  <a href="ai-simulator.html" class="nav__mobile-link">🤖 Simulador IA</a>
+  <a href="admin.html"        class="nav__mobile-link">📊 Painel Admin</a>
+</div>
+<div class="toast-container" id="tc"></div>
+
+<main>
+
+  <!-- ══════════════════════════════════════════════════════
+       TELA 0 — Como quer agendar?
+  ══════════════════════════════════════════════════════ -->
+  <div id="tela0">
+
+    <!-- Hero escuro -->
+    <div class="booking-hero">
+      <div class="booking-hero__inner">
+        <div class="booking-hero__tag" id="bookingShopTag">✂ Barbearia Central · Timbó, SC</div>
+        <h1 class="booking-hero__title">Como quer <em>agendar</em>?</h1>
+        <p class="booking-hero__sub">Simule o corte com IA antes de sentar na cadeira, ou vá direto ao agendamento.</p>
+      </div>
+    </div>
+
+    <!-- Cartões flutuantes -->
+    <div style="background:var(--color-bg);padding-bottom:var(--space-20)">
+      <div class="cards-float">
+
+        <!-- Cartão: Simulador IA -->
+        <div class="card-ia">
+          <div class="card-ia__badge">✨ Recomendado</div>
+          <div>
+            <div class="card-ia__title">Simular<br>com IA</div>
+            <p class="card-ia__desc" style="margin-top:var(--space-4)">
+              Veja como o corte fica <strong style="color:#FFF;font-weight:600">em você</strong> antes de agendar.
+              Escolha entre 45 estilos do catálogo e compare lado a lado.
+            </p>
+          </div>
+          <div class="card-ia__quota">
+            <span>🤖</span>
+            <span>2 testes gratuitos por mês · R$ 2,00 por extra</span>
+          </div>
+          <a href="ai-simulator.html" class="btn btn--primary btn--full btn--lg" style="margin-top:var(--space-2)">
+            Abrir simulador →
+          </a>
+        </div>
+
+        <!-- Divisor "OU" -->
+        <div class="ou-divider">
+          <div class="ou-badge">ou</div>
+        </div>
+
+        <!-- Cartão: Express -->
+        <div class="card-express">
+          <div>
+            <div class="card-express__tag">⚡ Express</div>
+            <div class="card-express__title" style="margin-top:var(--space-2)">Já sei o<br>que quero</div>
+            <p class="card-express__desc">Escolha o corte e vá direto ao barbeiro — sem simulação.</p>
+          </div>
+
+          <div class="cut-pills" id="expressPills">
+            <label class="cut-pill">
+              <input type="radio" name="expCut" value="Degradê|35|30" onchange="updateExpress()"/>
+              <span class="cut-pill__dot"></span>
+              <span class="cut-pill__icon">✂</span>
+              <span class="cut-pill__name">Degradê</span>
+              <span class="cut-pill__price">R$ 35</span>
+            </label>
+            <label class="cut-pill">
+              <input type="radio" name="expCut" value="Corte Social|25|20" onchange="updateExpress()"/>
+              <span class="cut-pill__dot"></span>
+              <span class="cut-pill__icon">💈</span>
+              <span class="cut-pill__name">Corte Social</span>
+              <span class="cut-pill__price">R$ 25</span>
+            </label>
+            <label class="cut-pill">
+              <input type="radio" name="expCut" value="Navalhado|30|25" onchange="updateExpress()"/>
+              <span class="cut-pill__dot"></span>
+              <span class="cut-pill__icon">🪒</span>
+              <span class="cut-pill__name">Navalhado</span>
+              <span class="cut-pill__price">R$ 30</span>
+            </label>
+          </div>
+
+          <label class="addon-check addon-check--light">
+            <input type="checkbox" id="expBarba" onchange="updateExpress()"/>
+            <span class="addon-check__box">✓</span>
+            <span style="font-size:var(--text-sm);color:var(--color-text)">
+              + Adicionar barba
+              <span style="color:var(--color-text-muted);margin-left:4px">+R$ 20 · +20 min</span>
+            </span>
+          </label>
+
+          <button class="btn btn--navy btn--full btn--lg" id="btnExpress" onclick="confirmarExpress()" type="button" disabled>
+            Agendar agora →
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /tela0 -->
+
+  <!-- ══════════════════════════════════════════════════════
+       FLUXO — Steps 1-3
+  ══════════════════════════════════════════════════════ -->
+  <div id="flowWrap" style="display:none" class="main-content">
+    <div class="container py-8">
+
+      <!-- Banner corte simulado -->
+      <div class="sim-banner" id="simBanner" style="display:none">
+        <span style="font-size:1.1rem">✨</span>
+        <span>Agendando com corte simulado: <strong id="simBannerName"></strong></span>
+        <button onclick="voltarTela0()" style="margin-left:auto;background:none;border:none;font-size:var(--text-sm);color:var(--color-red);font-weight:600;cursor:pointer">Trocar</button>
+      </div>
+
+      <!-- Banner da barbearia (vindo da vitrine) -->
+      <div class="sim-banner" id="shopBanner" style="display:none">
+        <span style="font-size:1.1rem">💈</span>
+        <span>Agendando na <strong id="shopBannerName"></strong></span>
+        <button onclick="voltarTela0()" style="margin-left:auto;background:none;border:none;font-size:var(--text-sm);color:var(--color-red);font-weight:600;cursor:pointer">Trocar</button>
+      </div>
+
+      <!-- Cabeçalho -->
+      <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-8)">
+        <button class="btn-icon" onclick="voltarTela0()" aria-label="Voltar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <div>
+          <h3 style="color:var(--color-navy);margin:0">Agendar horário</h3>
+          <p style="font-size:var(--text-sm);margin:0;color:var(--color-text-muted)" id="flowShopName">Barbearia Central · Centro, Timbó SC</p>
+        </div>
+      </div>
+
+      <!-- Stepper 3 etapas -->
+      <div class="stepper" id="stepper" style="margin-bottom:var(--space-8)">
+        <div class="stepper__step active" id="st1">
+          <div class="stepper__dot">1</div>
+          <div class="stepper__info"><div class="stepper__label">Barbeiro</div></div>
+        </div>
+        <div class="stepper__step" id="st2">
+          <div class="stepper__dot">2</div>
+          <div class="stepper__info"><div class="stepper__label">Data &amp; Hora</div></div>
+        </div>
+        <div class="stepper__step" id="st3">
+          <div class="stepper__dot">3</div>
+          <div class="stepper__info"><div class="stepper__label">Pagamento</div></div>
+        </div>
+      </div>
+
+      <div class="booking-layout">
+        <div>
+
+          <!-- STEP 1: Barbeiro -->
+          <div id="bs1" class="booking-step active">
+            <div class="step-header">
+              <h4>Escolha seu barbeiro</h4>
+              <p id="barberStepSub">Todos disponíveis para hoje na Barbearia Central</p>
+            </div>
+            <div class="flex-col gap-3" id="barberList">
+
+              <div class="barber-card" onclick="pickBrb(this,'Carlos Mendes')">
+                <div class="avatar avatar--lg" style="background:linear-gradient(135deg,#1A3A6B,#0B1F3A)">CM</div>
+                <div class="barber-card__info">
+                  <div class="barber-card__name">Carlos Mendes</div>
+                  <div style="font-size:var(--text-xs);color:var(--color-yellow);font-weight:600;margin-bottom:var(--space-1)">★ 4.9 <span style="color:var(--color-text-muted);font-weight:400">(312 avaliações)</span></div>
+                  <div style="font-size:var(--text-xs);color:var(--color-text-muted)">Degradê · Navalha · 8 anos de experiência</div>
+                </div>
+                <div class="barber-card__avail">
+                  <span class="avail-dot avail-dot--green"></span>
+                  <span style="color:var(--color-green)">Disponível</span>
+                </div>
+              </div>
+
+              <div class="barber-card" onclick="pickBrb(this,'Rafael Costa')">
+                <div class="avatar avatar--lg" style="background:linear-gradient(135deg,#C81D4E,#E5383B)">RC</div>
+                <div class="barber-card__info">
+                  <div class="barber-card__name">Rafael Costa</div>
+                  <div style="font-size:var(--text-xs);color:var(--color-yellow);font-weight:600;margin-bottom:var(--space-1)">★ 4.8 <span style="color:var(--color-text-muted);font-weight:400">(198 avaliações)</span></div>
+                  <div style="font-size:var(--text-xs);color:var(--color-text-muted)">Social · Clássico · 5 anos de experiência</div>
+                </div>
+                <div class="barber-card__avail">
+                  <span class="avail-dot avail-dot--green"></span>
+                  <span style="color:var(--color-green)">Disponível</span>
+                </div>
+              </div>
+
+              <div class="barber-card" onclick="pickBrb(this,'Diego Alves')">
+                <div class="avatar avatar--lg" style="background:linear-gradient(135deg,#4B2D8A,#2D1B69)">DA</div>
+                <div class="barber-card__info">
+                  <div class="barber-card__name">Diego Alves</div>
+                  <div style="font-size:var(--text-xs);color:var(--color-yellow);font-weight:600;margin-bottom:var(--space-1)">★ 4.7 <span style="color:var(--color-text-muted);font-weight:400">(87 avaliações)</span></div>
+                  <div style="font-size:var(--text-xs);color:var(--color-text-muted)">Afro · Crespo · 3 anos de experiência</div>
+                </div>
+                <div class="barber-card__avail">
+                  <span class="avail-dot avail-dot--yellow"></span>
+                  <span style="color:var(--color-yellow)">Volta às 14h</span>
+                </div>
+              </div>
+
+            </div>
+            <div style="margin-top:var(--space-6);display:flex;justify-content:space-between">
+              <button class="btn btn--ghost" onclick="voltarTela0()">← Voltar</button>
+              <button class="btn btn--primary" id="btn1" disabled onclick="goStep(2)">Continuar →</button>
+            </div>
+          </div>
+
+          <!-- STEP 2: Data e Hora -->
+          <div id="bs2" class="booking-step">
+            <div class="step-header">
+              <h4>Escolha data e horário</h4>
+              <p>Domingo fechado · horários em vermelho indisponíveis</p>
+            </div>
+            <div class="booking-calendar" style="margin-bottom:var(--space-5)">
+              <div class="booking-calendar__header">
+                <button class="btn-icon btn-icon--sm" onclick="mMove(-1)" type="button">‹</button>
+                <span class="booking-calendar__month" id="calTitle"></span>
+                <button class="btn-icon btn-icon--sm" onclick="mMove(1)"  type="button">›</button>
+              </div>
+              <div class="booking-calendar__grid" id="calGrid"></div>
+            </div>
+            <div id="timeSection" style="display:none">
+              <h5 style="color:var(--color-navy);margin-bottom:var(--space-3)">Horários disponíveis</h5>
+              <div class="time-grid">
+                <div class="time-slot" onclick="pickT(this,'08:00')">08:00</div>
+                <div class="time-slot" onclick="pickT(this,'08:30')">08:30</div>
+                <div class="time-slot busy">09:00</div>
+                <div class="time-slot" onclick="pickT(this,'09:30')">09:30</div>
+                <div class="time-slot" onclick="pickT(this,'10:00')">10:00</div>
+                <div class="time-slot busy">10:30</div>
+                <div class="time-slot" onclick="pickT(this,'11:00')">11:00</div>
+                <div class="time-slot busy">11:30</div>
+                <div class="time-slot" onclick="pickT(this,'13:00')">13:00</div>
+                <div class="time-slot" onclick="pickT(this,'13:30')">13:30</div>
+                <div class="time-slot" onclick="pickT(this,'14:00')">14:00</div>
+                <div class="time-slot busy">14:30</div>
+                <div class="time-slot" onclick="pickT(this,'15:00')">15:00</div>
+                <div class="time-slot" onclick="pickT(this,'15:30')">15:30</div>
+                <div class="time-slot busy">16:00</div>
+                <div class="time-slot" onclick="pickT(this,'16:30')">16:30</div>
+                <div class="time-slot" onclick="pickT(this,'17:00')">17:00</div>
+                <div class="time-slot" onclick="pickT(this,'17:30')">17:30</div>
+              </div>
+            </div>
+            <div style="margin-top:var(--space-6);display:flex;justify-content:space-between">
+              <button class="btn btn--ghost" onclick="goStep(1)">← Voltar</button>
+              <button class="btn btn--primary" id="btn2" disabled onclick="goStep(3)">Continuar →</button>
+            </div>
+          </div>
+
+          <!-- STEP 3: Pagamento -->
+          <div id="bs3" class="booking-step">
+            <div class="step-header">
+              <h4>Confirmar e pagar</h4>
+              <p>Pagamento seguro · confirmação imediata via WhatsApp</p>
+            </div>
+            <div class="flex-col gap-4">
+              <div class="form-group">
+                <label class="form-label">Forma de pagamento</label>
+                <select class="form-control" onchange="toggleCard(this.value)">
+                  <option value="credito">💳 Cartão de crédito</option>
+                  <option value="debito">💳 Cartão de débito</option>
+                  <option value="pix">📱 PIX</option>
+                  <option value="dinheiro">💵 Dinheiro no local</option>
+                </select>
+              </div>
+              <div id="cardFields">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                  <div class="form-group"><label class="form-label form-label--required">Número</label><input class="form-control" type="text" placeholder="0000 0000 0000 0000" maxlength="19" oninput="fmtCard(this)"/></div>
+                  <div class="form-group"><label class="form-label form-label--required">Nome</label><input class="form-control" type="text" placeholder="JOÃO DA SILVA"/></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+                  <div class="form-group"><label class="form-label form-label--required">Validade</label><input class="form-control" type="text" placeholder="MM/AA" maxlength="5"/></div>
+                  <div class="form-group"><label class="form-label form-label--required">CVV</label><input class="form-control" type="text" placeholder="000" maxlength="4"/></div>
+                </div>
+              </div>
+              <div id="pixBlock" style="display:none;background:var(--color-surface-2);border-radius:var(--radius-lg);padding:var(--space-5);text-align:center">
+                <div style="font-size:3rem;margin-bottom:var(--space-3)">📱</div>
+                <p style="font-size:var(--text-sm);font-weight:500;color:var(--color-navy);margin-bottom:var(--space-2)">Pague via PIX</p>
+                <p style="font-size:var(--text-xs)">Um QR Code será gerado após a confirmação.</p>
+              </div>
+              <label style="display:flex;align-items:center;gap:var(--space-3);cursor:pointer">
+                <input type="checkbox" id="saveCard" checked/>
+                <span style="font-size:var(--text-sm);color:var(--color-text-muted)">Salvar para próximos agendamentos</span>
+              </label>
+            </div>
+            <div style="margin-top:var(--space-6);display:flex;justify-content:space-between">
+              <button class="btn btn--ghost" onclick="goStep(2)">← Voltar</button>
+              <button class="btn btn--primary btn--lg" onclick="confirmBooking()">Confirmar agendamento</button>
+            </div>
+          </div>
+
+        </div><!-- /steps -->
+
+        <!-- Resumo -->
+        <div>
+          <div class="booking-summary">
+            <div class="booking-summary__title">Resumo do agendamento</div>
+            <div class="booking-summary__item"><span class="booking-summary__label">Barbearia</span><span class="booking-summary__value">Barbearia Central</span></div>
+            <div class="booking-summary__item"><span class="booking-summary__label">Serviço</span><span class="booking-summary__value" id="rSvc">—</span></div>
+            <div class="booking-summary__item"><span class="booking-summary__label">Barbeiro</span><span class="booking-summary__value" id="rBrb">—</span></div>
+            <div class="booking-summary__item"><span class="booking-summary__label">Data</span><span class="booking-summary__value" id="rDate">—</span></div>
+            <div class="booking-summary__item"><span class="booking-summary__label">Horário</span><span class="booking-summary__value" id="rTime">—</span></div>
+            <div class="booking-summary__item"><span class="booking-summary__label">Duração</span><span class="booking-summary__value" id="rDur">—</span></div>
+            <div class="booking-summary__total"><span>Total</span><span id="rTotal">R$ —</span></div>
+            <div style="margin-top:var(--space-4);padding:var(--space-3);background:rgba(255,255,255,.08);border-radius:var(--radius-lg);font-size:var(--text-xs);color:rgba(255,255,255,.6)">
+              ⚡ Confirmação imediata por WhatsApp após o pagamento.
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /booking-layout -->
+    </div>
+  </div><!-- /flowWrap -->
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/data.js"></script>
+<script src="js/global.js"></script>
+<script src="js/booking.js"></script>
+</body>
+</html>
+
+

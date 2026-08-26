@@ -1,0 +1,458 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%230B1F3A%22/><text y=%22.9em%22 font-size=%2272%22 x=%2250%25%22 text-anchor=%22middle%22>✂</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="BarberKut — Simulador de corte com IA. Escolha entre dezenas de cortes e veja o resultado na sua foto."/>
+  <title>Simulador de IA — BarberKut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="css/upgrade.css"/>
+  <style>
+    .logo-nav  { height:28px;width:auto; }
+    .logo-dark { height:28px;width:auto; }
+
+    /* ── Abas de categoria ── */
+    .cat-tabs {
+      display:flex; gap:var(--space-2); overflow-x:auto;
+      padding:var(--space-2) var(--space-1) var(--space-4); margin-bottom:var(--space-4);
+      scrollbar-width:none;
+    }
+    .cat-tabs::-webkit-scrollbar { display:none; }
+    .cat-tab {
+      padding:var(--space-2) var(--space-5); border-radius:var(--radius-full);
+      font-size:var(--text-sm); font-weight:600; white-space:nowrap;
+      color:var(--color-text-muted); background:transparent; border:none;
+      cursor:pointer; transition: color var(--transition-fast), background-color var(--transition-fast); flex-shrink:0;
+    }
+    .cat-tab:hover  { color:var(--color-navy); }
+    .cat-tab.active { background:var(--color-navy); color:#FFF; }
+
+    /* ── Grade do catálogo ── */
+    .cut-grid {
+      display:grid; gap:var(--space-4);
+      grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+      padding-bottom:140px;
+    }
+
+    /* wrapper com as cores da barbearia — exclusivo do simulador */
+    :root {
+      --barber-grad: linear-gradient(135deg, #E5383B, #FFFFFF, #1A3A6B, #FFFFFF, #E5383B);
+    }
+    @keyframes barberSpin {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .cut-card-wrap {
+      position: relative;
+      border-radius: calc(var(--radius-xl) + 2px);
+      padding: 2px;
+      background: transparent;
+    }
+    .cut-card-wrap::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      background: var(--barber-grad);
+      background-size: 300% 300%;
+      opacity: 0;
+      transition: opacity var(--transition-base);
+      animation: barberSpin 4s linear infinite;
+    }
+    .cut-card-wrap:hover::before   { opacity: 1; }
+    .cut-card-wrap.selected::before { opacity: 1; }
+
+    .cut-card {
+      position: relative;
+      background: var(--color-surface);
+      border: none;
+      border-radius: var(--radius-xl);
+      padding: var(--space-3);
+      cursor: pointer;
+      text-align: center;
+      box-shadow: var(--shadow-card);
+      transition: transform var(--transition-spring), box-shadow var(--transition-spring), background var(--transition-base);
+      user-select: none;
+      height: 100%;
+    }
+    .cut-card-wrap:hover .cut-card   { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(11,31,58,.13); }
+    .cut-card-wrap.selected .cut-card { background: rgba(11,31,58,.03); }
+
+    .cut-card__art {
+      width:100%; aspect-ratio:1; border-radius:var(--radius-lg);
+      overflow:hidden; background:var(--color-surface-2);
+      transition: transform var(--transition-spring);
+    }
+    .cut-card-wrap:hover .cut-card__art { transform: scale(1.03); }
+    .cut-card__art svg, .cut-card__art img { width:100%; height:100%; display:block; object-fit:contain; }
+
+    .cut-card__name {
+      font-size:var(--text-sm); font-weight:600; color:var(--color-navy);
+      margin-top:var(--space-2); line-height:1.3; min-height:2.6em;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .cut-card__check {
+      position:absolute; top:var(--space-2); right:var(--space-2);
+      width:24px; height:24px; border-radius:50%;
+      border:2px solid var(--color-border); background:var(--color-surface);
+      display:flex; align-items:center; justify-content:center;
+      font-size:13px; font-weight:700; color:#FFF;
+      transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-spring);
+      z-index:2;
+    }
+    .cut-card__check.on {
+      background: var(--grad-red);
+      border-color: transparent;
+      transform: scale(1.15);
+      box-shadow: 0 2px 8px rgba(229,56,59,.4);
+    }
+    .cut-card__info {
+      position:absolute; bottom:var(--space-2); right:var(--space-2);
+      width:22px; height:22px; border-radius:50%;
+      border:1.5px solid var(--color-border); background:var(--color-surface);
+      color:var(--color-text-muted); font-size:11px; font-weight:600;
+      font-style:italic; font-family:Georgia,serif;
+      cursor:pointer; z-index:2; transition: border-color var(--transition-fast), color var(--transition-fast);
+    }
+    .cut-card__info:hover { border-color:var(--color-navy); color:var(--color-navy); }
+
+    /* ── Barra de seleção (inferior fixa) ── */
+    .select-bar {
+      position:fixed; left:0; right:0; bottom:0; z-index:900;
+      background:var(--color-surface); border-top:1px solid var(--color-border);
+      box-shadow:0 -8px 32px rgba(11,31,58,.12);
+      transform:translateY(110%); transition:transform var(--transition-base);
+    }
+    .select-bar.open { transform:translateY(0); }
+    .select-bar__inner { padding:var(--space-4) var(--space-6); max-width:var(--container-xl); margin-inline:auto; }
+    .select-bar__top {
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:var(--space-3);
+    }
+    .select-bar__top strong { color:var(--color-navy); font-size:var(--text-base); }
+    .select-bar__clear {
+      background:none; border:none; color:var(--color-red);
+      font-size:var(--text-sm); font-weight:600; cursor:pointer;
+    }
+    .select-bar__row { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); }
+    .select-bar__thumbs { display:flex; gap:var(--space-3); }
+    .sel-thumb {
+      position:relative; width:56px; height:60px;
+      background:var(--color-surface-2); border-radius:var(--radius-md);
+      padding:4px;
+    }
+    .sel-thumb svg { width:100%; height:100%; }
+    .sel-thumb__x {
+      position:absolute; top:-7px; right:-7px;
+      width:20px; height:20px; border-radius:50%;
+      background:var(--color-navy); color:#FFF; border:none;
+      font-size:10px; cursor:pointer; display:flex;
+      align-items:center; justify-content:center;
+    }
+
+    /* ── Chips dos cortes escolhidos ── */
+    .chosen-chips { display:flex; gap:var(--space-2); flex-wrap:wrap; margin-bottom:var(--space-6); }
+    .chosen-chip {
+      display:inline-flex; align-items:center; gap:var(--space-2);
+      padding:var(--space-1) var(--space-4) var(--space-1) var(--space-1);
+      border-radius:var(--radius-full); border:1.5px solid var(--color-border);
+      background:var(--color-surface); font-size:var(--text-sm); font-weight:600;
+      color:var(--color-navy); cursor:pointer; transition: border-color var(--transition-fast), background-color var(--transition-fast);
+    }
+    .chosen-chip.active { border-color:var(--color-navy); background:rgba(11,31,58,.05); }
+    .chosen-chip__art { width:32px; height:34px; display:block; }
+    .chosen-chip__art svg { width:100%; height:100%; }
+
+    /* ── Resultado: antes/depois ── */
+    .ba-grid { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-4); position:relative; }
+    .ba-panel {
+      position:relative; aspect-ratio:3/4; border-radius:var(--radius-2xl);
+      overflow:hidden; background:var(--color-surface-2);
+    }
+    .ba-panel img { width:100%; height:100%; object-fit:cover; }
+    .ba-label {
+      position:absolute; top:var(--space-3); left:var(--space-3);
+      padding:var(--space-1) var(--space-3); border-radius:var(--radius-md);
+      font-size:var(--text-xs); font-weight:600; color:#FFF;
+      background:rgba(120,130,145,.75); backdrop-filter:blur(6px);
+    }
+    .ba-label--after { background:var(--color-navy); }
+    .ba-arrow {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      width:44px; height:44px; border-radius:50%; background:var(--color-surface);
+      box-shadow:var(--shadow-lg); display:flex; align-items:center; justify-content:center;
+      color:var(--color-navy); font-size:1.1rem; z-index:3;
+    }
+    .after-fx {
+      position:absolute; inset:0;
+      background:linear-gradient(180deg,rgba(11,31,58,.05) 0%,rgba(11,31,58,.30) 100%);
+    }
+    .after-badge {
+      position:absolute; right:var(--space-3); bottom:var(--space-3);
+      width:64px; height:70px; background:rgba(255,255,255,.92);
+      border-radius:var(--radius-lg); padding:4px; box-shadow:var(--shadow-md);
+    }
+    .after-badge svg { width:100%; height:100%; }
+    .after-note {
+      position:absolute; left:var(--space-3); bottom:var(--space-3);
+      font-size:10px; color:rgba(255,255,255,.85); font-weight:500;
+    }
+
+    /* ── Card do corte no resultado ── */
+    .rcut-card {
+      display:flex; align-items:center; gap:var(--space-4);
+      background:var(--color-surface); border-radius:var(--radius-xl);
+      padding:var(--space-4); box-shadow:var(--shadow-card);
+      margin-top:var(--space-6);
+    }
+    .rcut-card__art { width:80px; flex-shrink:0; }
+    .rcut-card__art svg { width:100%; height:auto; }
+
+    /* ── Detalhes do corte ── */
+    .details-card {
+      background:var(--color-surface); border-radius:var(--radius-xl);
+      box-shadow:var(--shadow-card); margin-top:var(--space-4); overflow:hidden;
+    }
+    .details-card__head {
+      padding:var(--space-4) var(--space-5); border-bottom:1px solid var(--color-border);
+      font-weight:600; color:var(--color-navy);
+    }
+    .details-grid {
+      display:grid; grid-template-columns:repeat(4,1fr);
+      padding:var(--space-5); gap:var(--space-3);
+    }
+    .detail-col { text-align:center; }
+    .detail-col__icon  { font-size:1.5rem; margin-bottom:var(--space-2); }
+    .detail-col__label { font-size:var(--text-xs); color:var(--color-text); font-weight:500; line-height:1.4; }
+
+    /* ── Recomendação do barbeiro ── */
+    .barber-rec {
+      display:flex; gap:var(--space-4); align-items:flex-start;
+      padding:var(--space-5);
+    }
+    .barber-rec p { font-size:var(--text-sm); color:var(--color-text); margin-bottom:var(--space-1); }
+    .barber-rec small { color:var(--color-text-muted); }
+
+    /* ── Responsivo ── */
+    @media(max-width:768px) {
+      .cut-grid { grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:var(--space-3); }
+      .cut-card__name { font-size:var(--text-xs); }
+      .details-grid { grid-template-columns:repeat(2,1fr); gap:var(--space-5) var(--space-3); }
+      .select-bar__row { flex-direction:column; align-items:stretch; }
+      .select-bar__thumbs { justify-content:center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav" id="mainNav">
+  <div class="nav__inner">
+    <a href="index.html" class="nav__logo">
+      <img src="img/logo_navy.png" alt="" aria-hidden="true" class="logo-nav"/>
+      Barber<span>Kut</span>
+    </a>
+    <div class="nav__links">
+      <a href="index.html"        class="nav__link">Início</a>
+      <a href="index.html#discoverySection" class="nav__link">Barbearias</a>
+      <a href="ai-simulator.html" class="nav__link active">Simulador IA</a>
+      <a href="admin.html"        class="nav__link">Painel Admin</a>
+    </div>
+    <div class="nav__actions">
+      <a href="booking.html" class="btn btn--primary btn--sm">Agendar agora</a>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Mudar para tema escuro" title="Alternar tema">
+      <span class="theme-toggle__icon">🌙</span>
+    </button>
+      <div class="avatar">JS</div>
+    </div>
+    <button class="nav__hamburger" id="hbg" aria-label="Menu" onclick="toggleNav()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+<div class="nav__mobile-menu" id="mobileMenu">
+  <a href="index.html"   class="nav__mobile-link">🏠 Início</a>
+  <a href="booking.html" class="nav__mobile-link">📅 Agendar</a>
+  <a href="admin.html"   class="nav__mobile-link">📊 Painel Admin</a>
+</div>
+<div class="toast-container" id="tc"></div>
+
+<!-- Modal de detalhes do corte -->
+<div class="modal-overlay" id="mInfo">
+  <div class="modal modal--center">
+    <div class="modal__header">
+      <span class="modal__title">Detalhes do corte</span>
+      <button class="btn-icon btn-icon--sm" onclick="closeModal('mInfo')" aria-label="Fechar">✕</button>
+    </div>
+    <div class="modal__body" style="text-align:center">
+      <div id="infoArt" style="width:130px;margin:0 auto var(--space-4)"></div>
+      <h4 id="infoName" style="color:var(--color-navy);margin-bottom:var(--space-2)"></h4>
+      <p id="infoDesc" style="font-size:var(--text-sm);margin-bottom:var(--space-5)"></p>
+      <div id="infoDet" style="display:flex;gap:var(--space-2);flex-wrap:wrap;justify-content:center"></div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--primary btn--full" onclick="closeModal('mInfo')">Entendi</button>
+    </div>
+  </div>
+</div>
+
+<main class="main-content">
+
+  <!-- ══════════ VIEW 1: CATÁLOGO ══════════ -->
+  <div id="view-catalog">
+    <div class="container py-8">
+
+      <div style="text-align:center;margin-bottom:var(--space-8)">
+        <h2 style="color:var(--color-navy);margin-bottom:var(--space-2)">Escolha seu corte</h2>
+        <p style="font-size:var(--text-md)">Selecione o estilo que mais combina com você.</p>
+        <div class="ai-simulator__quota" id="quota" style="margin-top:var(--space-5)">🤖 2 testes gratuitos restantes este mês</div>
+      </div>
+
+      <!-- Abas de categoria (geradas via JS) -->
+      <div class="cat-tabs" id="catTabs"></div>
+
+      <!-- Grade de cortes (gerada via JS) -->
+      <div class="cut-grid" id="catalog"></div>
+
+    </div>
+
+    <!-- Barra de seleção fixa -->
+    <div class="select-bar" id="selectBar">
+      <div class="select-bar__inner">
+        <div class="select-bar__top">
+          <strong id="selCount">0 cortes selecionados</strong>
+          <button class="select-bar__clear" onclick="clearSel()" type="button">Limpar</button>
+        </div>
+        <div class="select-bar__row">
+          <div class="select-bar__thumbs" id="selThumbs"></div>
+          <button class="btn btn--navy btn--lg" onclick="goPhotoStep()" type="button">Próximo →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ VIEW 2: FOTO + RESULTADO ══════════ -->
+  <div id="view-sim" style="display:none">
+    <div class="container py-8" style="max-width:var(--container-md)">
+
+      <!-- ── Etapa de upload ── -->
+      <div id="uploadStage">
+        <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-6)">
+          <button class="btn-icon" onclick="backToCatalog()" aria-label="Voltar" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          </button>
+          <div>
+            <h3 style="color:var(--color-navy);margin:0">Envie sua foto</h3>
+            <p style="font-size:var(--text-sm);margin:0;color:var(--color-text-muted)">Use uma foto de frente com boa iluminação</p>
+          </div>
+        </div>
+
+        <p style="font-size:var(--text-sm);font-weight:600;color:var(--color-navy);margin-bottom:var(--space-3)">Cortes escolhidos:</p>
+        <div class="chosen-chips" id="chosenChips"></div>
+
+        <div class="dropzone" onclick="document.getElementById('photoInput').click()">
+          <div class="dropzone__icon" id="dzIcon">📷</div>
+          <div class="dropzone__title" id="dzTitle">Enviar foto</div>
+          <p class="dropzone__hint">Clique ou arraste · JPG, PNG · até 10 MB</p>
+          <input type="file" id="photoInput" accept="image/*" onchange="onPhoto(this)"/>
+        </div>
+
+        <button class="btn btn--primary btn--full btn--lg" style="margin-top:var(--space-5)" id="btnSim" onclick="simulate()" disabled type="button">
+          Simular com IA ✨
+        </button>
+
+        <div id="paywall" style="display:none;margin-top:var(--space-6);background:linear-gradient(135deg,var(--color-navy),var(--color-navy-light));border-radius:var(--radius-2xl);padding:var(--space-8);text-align:center;color:#FFF">
+          <div style="font-size:2.5rem;margin-bottom:var(--space-3)">🔒</div>
+          <h5 style="color:#FFF;margin-bottom:var(--space-2)">Testes gratuitos esgotados</h5>
+          <p style="color:rgba(255,255,255,.6);font-size:var(--text-sm);margin-bottom:var(--space-4)">Continue simulando por apenas</p>
+          <div style="font-size:var(--text-3xl);font-weight:800;letter-spacing:-.03em;margin-bottom:var(--space-5)">R$ 2,00 <span style="font-size:var(--text-sm);font-weight:400;opacity:.6">/ por teste</span></div>
+          <button class="btn btn--primary btn--full" onclick="toast('Em breve: compra de créditos!','info')" type="button">Comprar créditos</button>
+        </div>
+      </div>
+
+      <!-- ── Etapa de resultado: "Seu novo visual" ── -->
+      <div id="resultStage" style="display:none">
+
+        <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-2)">
+          <button class="btn-icon" onclick="chooseAnother()" aria-label="Voltar" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          </button>
+          <h3 style="color:var(--color-navy);margin:0">Seu novo visual</h3>
+        </div>
+        <p style="font-size:var(--text-sm);margin-bottom:var(--space-6);padding-left:56px">Veja como o corte escolhido combina com você.</p>
+
+        <!-- Chips para alternar entre cortes (só com 2+) -->
+        <div class="chosen-chips" id="resultChips" style="display:none"></div>
+
+        <!-- Antes / Depois -->
+        <div class="ba-grid">
+          <div class="ba-panel">
+            <img id="beforeImg" src="" alt="Antes"/>
+            <span class="ba-label">Antes</span>
+          </div>
+          <div class="ba-panel">
+            <img id="afterPhoto" src="" alt="Depois"/>
+            <div class="after-fx"></div>
+            <span class="ba-label ba-label--after">Depois</span>
+            <div class="after-badge" id="afterBadge"></div>
+            <span class="after-note">Simulação ilustrativa</span>
+          </div>
+          <div class="ba-arrow">→</div>
+        </div>
+
+        <!-- Card do corte -->
+        <div class="rcut-card">
+          <div class="rcut-card__art" id="rCutArt"></div>
+          <div style="flex:1;min-width:0">
+            <h5 id="rCutName" style="color:var(--color-navy);margin-bottom:var(--space-1)"></h5>
+            <p id="rCutDesc" style="font-size:var(--text-sm);margin-bottom:var(--space-3)"></p>
+            <div id="rCutTags" style="display:flex;gap:var(--space-2);flex-wrap:wrap"></div>
+          </div>
+        </div>
+
+        <!-- Detalhes do corte -->
+        <div class="details-card">
+          <div class="details-card__head">Detalhes do corte</div>
+          <div class="details-grid" id="rDetails"></div>
+        </div>
+
+        <!-- Recomendações do barbeiro -->
+        <div class="details-card">
+          <div class="details-card__head">Recomendações do barbeiro</div>
+          <div class="barber-rec">
+            <div class="avatar avatar--lg" style="flex-shrink:0">LB</div>
+            <div>
+              <p>Este corte valoriza o formato do seu rosto e traz um visual moderno e versátil.</p>
+              <small>— Lucas, Barbeiro</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ações -->
+        <div style="display:flex;gap:var(--space-4);margin-top:var(--space-6);flex-wrap:wrap">
+          <button class="btn btn--secondary btn--lg" style="flex:1;min-width:200px" onclick="chooseAnother()" type="button">Escolher outro corte</button>
+          <button class="btn btn--primary btn--lg" style="flex:1;min-width:200px" onclick="bookThisCut()" type="button">Agendar com este corte</button>
+        </div>
+
+      </div><!-- /resultStage -->
+
+    </div>
+  </div><!-- /view-sim -->
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/global.js"></script>
+<script src="js/simulator.js"></script>
+</body>
+</html>
+
+
+
+

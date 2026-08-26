@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%230B1F3A%22/><text y=%22.9em%22 font-size=%2272%22 x=%2250%25%22 text-anchor=%22middle%22>✂</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Cadastre sua barbearia na BarberKut — grátis para começar." />
+  <title>Cadastrar barbearia — BarberKut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/upgrade.css" />
+  <style>
+    .wizard { max-width: 720px; margin: 0 auto; }
+    .wizard-step { display: none; }
+    .wizard-step.active { display: block; animation: fadeUp .4s both; }
+    .wstep-title { font-size: var(--text-xl); color: var(--color-navy); margin-bottom: var(--space-1); }
+    .wstep-sub { color: var(--color-text-muted); margin-bottom: var(--space-6); font-size: var(--text-sm); }
+    .wcard { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: var(--space-6); }
+
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+    .field-grid--full { grid-template-columns: 1fr; }
+
+    /* serviços dinâmicos */
+    .svc-row { display: grid; grid-template-columns: 2.2fr 1fr 1fr auto; gap: var(--space-2); margin-bottom: var(--space-2); align-items: center; }
+    .svc-row .btn-icon { color: var(--color-red); }
+
+    /* horários */
+    .hour-row { display: grid; grid-template-columns: 110px 96px 1fr; gap: var(--space-3); align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); }
+    .hour-row:last-child { border-bottom: none; }
+    .hour-row__day { font-weight: var(--fw-medium); color: var(--color-text); font-size: var(--text-sm); }
+    .hour-row__toggle { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-muted); }
+    .hour-row__times { display: flex; align-items: center; gap: var(--space-2); }
+    .hour-row__times input { padding: var(--space-2); }
+    .hour-row.closed .hour-row__times { opacity: .35; pointer-events: none; }
+
+    /* comodidades */
+    .amen-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: var(--space-2); }
+    .amen-check { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); cursor: pointer; transition: border-color var(--transition-fast), background-color var(--transition-fast); }
+    .amen-check:hover { border-color: var(--color-navy); }
+    .amen-check input { width: 18px; height: 18px; accent-color: var(--color-red); }
+    .amen-check span { font-size: var(--text-sm); }
+
+    .block-label { font-size: var(--text-sm); font-weight: var(--fw-semibold); color: var(--color-navy); margin: var(--space-6) 0 var(--space-3); }
+
+    /* revisão */
+    .review-item { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); font-size: var(--text-sm); }
+    .review-item__label { color: var(--color-text-muted); flex-shrink: 0; }
+    .review-item__value { color: var(--color-navy); font-weight: var(--fw-medium); text-align: right; }
+
+    .wizard-nav { display: flex; justify-content: space-between; margin-top: var(--space-6); }
+    .success-box { text-align: center; padding: var(--space-12) var(--space-6); }
+    .success-box__icon { font-size: 4rem; margin-bottom: var(--space-4); }
+
+    @media (max-width: 600px) {
+      .field-grid { grid-template-columns: 1fr; }
+      .svc-row { grid-template-columns: 1fr 1fr auto; }
+      .amen-grid { grid-template-columns: 1fr; }
+      .hour-row { grid-template-columns: 84px 84px 1fr; gap: var(--space-2); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════ NAV ══════════════ -->
+<nav class="nav" id="mainNav">
+  <div class="nav__inner">
+    <a href="index.html" class="nav__logo">
+      <img src="img/logo_navy.png" alt="" aria-hidden="true" class="logo-nav" style="height:28px" />
+      Barber<span>Kut</span>
+    </a>
+    <div class="nav__links">
+      <a href="index.html" class="nav__link">Início</a>
+      <a href="index.html#discoverySection" class="nav__link">Barbearias</a>
+      <a href="para-barbeiros.html" class="nav__link active">Para barbeiros</a>
+      <a href="admin.html" class="nav__link">Painel Admin</a>
+    </div>
+    <div class="nav__actions">
+      <button class="btn btn--ghost btn--sm" onclick="location.href='entrar.html'">Entrar</button>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Alternar tema" title="Alternar tema">
+        <span class="theme-toggle__icon">🌙</span>
+      </button>
+      <div class="avatar" title="Perfil">JS</div>
+    </div>
+    <button class="nav__hamburger" id="hbg" aria-label="Menu" onclick="toggleNav()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<div class="nav__mobile-menu" id="mobileMenu">
+  <a href="index.html" class="nav__mobile-link">🏠 Início</a>
+  <a href="index.html#discoverySection" class="nav__mobile-link">✂ Barbearias</a>
+  <a href="para-barbeiros.html" class="nav__mobile-link">💈 Para barbeiros</a>
+  <a href="admin.html" class="nav__mobile-link">📊 Painel Admin</a>
+</div>
+
+<div class="toast-container" id="tc"></div>
+
+<!-- ══════════════ HERO ══════════════ -->
+<section class="page-hero" style="padding-top:calc(var(--nav-height) + var(--space-12));padding-bottom:var(--space-12)">
+  <div class="container" style="text-align:center">
+    <div class="page-hero__eyebrow">💈 Seja parceiro</div>
+    <h1>Cadastre sua barbearia</h1>
+    <p>Grátis para começar. Gerencie agendamentos, equipe e financeiro num só lugar.</p>
+  </div>
+</section>
+
+<!-- ══════════════ WIZARD ══════════════ -->
+<div class="container py-8">
+  <div class="wizard">
+
+    <!-- Stepper -->
+    <div class="stepper" id="wstepper" style="margin-bottom:var(--space-8)">
+      <div class="stepper__step active" id="ws1"><div class="stepper__dot">1</div><div class="stepper__info"><div class="stepper__label">Sobre</div></div></div>
+      <div class="stepper__step" id="ws2"><div class="stepper__dot">2</div><div class="stepper__info"><div class="stepper__label">Local</div></div></div>
+      <div class="stepper__step" id="ws3"><div class="stepper__dot">3</div><div class="stepper__info"><div class="stepper__label">Serviços</div></div></div>
+      <div class="stepper__step" id="ws4"><div class="stepper__dot">4</div><div class="stepper__info"><div class="stepper__label">Revisão</div></div></div>
+    </div>
+
+    <!-- STEP 1 — Sobre -->
+    <div class="wizard-step active" id="wstep1">
+      <div class="wcard">
+        <div class="wstep-title">Sobre a barbearia</div>
+        <p class="wstep-sub">Conte o básico para os clientes conhecerem você.</p>
+        <div class="field-grid field-grid--full">
+          <div class="form-group">
+            <label class="form-label form-label--required">Nome da barbearia</label>
+            <input class="form-control" id="fName" type="text" placeholder="Ex.: Barbearia do João" />
+          </div>
+        </div>
+        <div class="field-grid field-grid--full" style="margin-top:var(--space-4)">
+          <div class="form-group">
+            <label class="form-label">Slogan curto</label>
+            <input class="form-control" id="fTagline" type="text" placeholder="Ex.: Tradição e estilo desde 2015" />
+          </div>
+        </div>
+        <div class="field-grid field-grid--full" style="margin-top:var(--space-4)">
+          <div class="form-group">
+            <label class="form-label">Descrição</label>
+            <textarea class="form-control" id="fAbout" rows="3" placeholder="Fale sobre o ambiente, o diferencial, a história..."></textarea>
+          </div>
+        </div>
+        <div class="field-grid" style="margin-top:var(--space-4)">
+          <div class="form-group">
+            <label class="form-label">Telefone / WhatsApp</label>
+            <input class="form-control" id="fPhone" type="tel" placeholder="(47) 99999-9999" oninput="fmtPhone(this)" maxlength="15" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Instagram</label>
+            <input class="form-control" id="fInsta" type="text" placeholder="@suabarbearia" />
+          </div>
+        </div>
+      </div>
+      <div class="wizard-nav">
+        <a href="para-barbeiros.html" class="btn btn--ghost">← Cancelar</a>
+        <button class="btn btn--primary" onclick="nextStep(1)">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2 — Localização -->
+    <div class="wizard-step" id="wstep2">
+      <div class="wcard">
+        <div class="wstep-title">Onde fica?</div>
+        <p class="wstep-sub">O endereço aparece no mapa e ajuda os clientes a chegar.</p>
+        <div class="field-grid field-grid--full">
+          <div class="form-group">
+            <label class="form-label form-label--required">Rua e número</label>
+            <input class="form-control" id="fStreet" type="text" placeholder="Ex.: Rua Marechal Deodoro, 152" />
+          </div>
+        </div>
+        <div class="field-grid" style="margin-top:var(--space-4)">
+          <div class="form-group">
+            <label class="form-label form-label--required">Bairro</label>
+            <input class="form-control" id="fDistrict" type="text" placeholder="Ex.: Centro" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cidade</label>
+            <input class="form-control" id="fCity" type="text" value="Timbó" />
+          </div>
+        </div>
+        <div class="field-grid" style="margin-top:var(--space-4)">
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <input class="form-control" id="fState" type="text" value="SC" maxlength="2" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ícone da vitrine</label>
+            <select class="form-control" id="fIcon">
+              <option value="✂">✂ Tesoura</option>
+              <option value="💈">💈 Poste</option>
+              <option value="🪒">🪒 Navalha</option>
+              <option value="🧔">🧔 Barba</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="wizard-nav">
+        <button class="btn btn--ghost" onclick="goWizard(1)">← Voltar</button>
+        <button class="btn btn--primary" onclick="nextStep(2)">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3 — Serviços, horários, comodidades -->
+    <div class="wizard-step" id="wstep3">
+      <div class="wcard">
+        <div class="wstep-title">Serviços e funcionamento</div>
+        <p class="wstep-sub">Adicione o que você oferece e quando está aberto.</p>
+
+        <div class="block-label">✂️ Serviços</div>
+        <div id="svcRows"></div>
+        <button class="btn btn--secondary btn--sm" onclick="addService()" type="button" style="margin-top:var(--space-2)">+ Adicionar serviço</button>
+
+        <div class="block-label">🕐 Horário de funcionamento</div>
+        <div id="hoursGrid"></div>
+
+        <div class="block-label">✨ Comodidades</div>
+        <div class="amen-grid" id="amenGrid"></div>
+      </div>
+      <div class="wizard-nav">
+        <button class="btn btn--ghost" onclick="goWizard(2)">← Voltar</button>
+        <button class="btn btn--primary" onclick="nextStep(3)">Revisar →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4 — Revisão -->
+    <div class="wizard-step" id="wstep4">
+      <div class="wcard">
+        <div class="wstep-title">Confira e finalize</div>
+        <p class="wstep-sub">Revise os dados antes de publicar sua barbearia.</p>
+        <div id="reviewBlock"></div>
+      </div>
+      <div class="wizard-nav">
+        <button class="btn btn--ghost" onclick="goWizard(3)">← Voltar</button>
+        <button class="btn btn--primary btn--lg" onclick="submitShop()">💈 Cadastrar barbearia</button>
+      </div>
+    </div>
+
+    <!-- SUCESSO -->
+    <div class="wizard-step" id="wsuccess">
+      <div class="wcard success-box">
+        <div class="success-box__icon">🎉</div>
+        <h2 style="color:var(--color-navy)">Barbearia cadastrada!</h2>
+        <p style="color:var(--color-text-muted);margin:var(--space-3) 0 var(--space-6)">
+          <strong id="successName"></strong> já está no ar na BarberKut. Veja como ficou a sua vitrine.
+        </p>
+        <div style="display:flex;gap:var(--space-3);justify-content:center;flex-wrap:wrap">
+          <a id="successView" href="#" class="btn btn--primary btn--lg">Ver minha vitrine →</a>
+          <a href="index.html" class="btn btn--secondary btn--lg">Voltar ao início</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/data.js"></script>
+<script src="js/global.js"></script>
+<script src="js/cadastrar-barbearia.js"></script>
+</body>
+</html>

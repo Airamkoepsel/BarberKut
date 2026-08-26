@@ -1,0 +1,168 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%230B1F3A%22/><text y=%22.9em%22 font-size=%2272%22 x=%2250%25%22 text-anchor=%22middle%22>✂</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Cadastre sua barbearia na BarberKut." />
+  <title>Para barbeiros — BarberKut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/upgrade.css" />
+  <style>
+    .logo-nav  { height:28px;width:auto; }
+    .logo-dark { height:28px;width:auto; }
+    /* Hero das páginas internas */
+    .page-hero { background:linear-gradient(180deg,#FFFFFF 0%,var(--color-bg) 100%); padding:calc(var(--nav-height) + var(--space-16)) 0 var(--space-12); text-align:center; }
+    .page-hero__eyebrow { display:inline-block; font-size:var(--text-sm); font-weight:600; color:var(--color-red); letter-spacing:.05em; text-transform:uppercase; margin-bottom:var(--space-4); }
+    .page-hero h1 { color:var(--color-navy); margin-bottom:var(--space-4); }
+    .page-hero p { max-width:560px; margin-inline:auto; font-size:var(--text-md); }
+    .page-section { padding:var(--space-12) 0; }
+    .prose { max-width:760px; margin-inline:auto; }
+    .prose h2 { color:var(--color-navy); margin:var(--space-8) 0 var(--space-4); font-size:var(--text-xl); }
+    .prose h2:first-child { margin-top:0; }
+    .prose p { margin-bottom:var(--space-4); line-height:var(--lh-relaxed); }
+    .prose ul { margin:0 0 var(--space-4) var(--space-5); list-style:disc; }
+    .prose li { margin-bottom:var(--space-2); color:var(--color-text-muted); line-height:var(--lh-relaxed); }
+    .prose strong { color:var(--color-navy); }
+    .legal-meta { font-size:var(--text-sm); color:var(--color-text-light); margin-bottom:var(--space-8); padding-bottom:var(--space-4); border-bottom:1px solid var(--color-border); }
+    
+  </style>
+</head>
+<body>
+<nav class="nav" id="mainNav">
+  <div class="nav__inner">
+    <a href="index.html" class="nav__logo">
+      <img src="img/logo_navy.png" alt="" aria-hidden="true" class="logo-nav" />
+      Barber<span>Kut</span>
+    </a>
+    <div class="nav__links">
+      <a href="index.html" class="nav__link">Início</a>
+      <a href="index.html#discoverySection" class="nav__link">Barbearias</a>
+      <a href="ai-simulator.html" class="nav__link">Simulador IA</a>
+      <a href="admin.html" class="nav__link">Painel Admin</a>
+    </div>
+    <div class="nav__actions">
+      <a href="booking.html" class="btn btn--primary btn--sm">Agendar agora</a>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Mudar para tema escuro" title="Alternar tema">
+      <span class="theme-toggle__icon">🌙</span>
+    </button>
+      <div class="avatar" title="Perfil">JS</div>
+    </div>
+    <button class="nav__hamburger" id="hbg" aria-label="Menu" onclick="toggleNav()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+<div class="nav__mobile-menu" id="mobileMenu">
+  <a href="index.html" class="nav__mobile-link">🏠 Início</a>
+  <a href="ai-simulator.html" class="nav__mobile-link">🤖 Simulador IA</a>
+  <a href="booking.html" class="nav__mobile-link">📅 Agendar</a>
+  <a href="admin.html" class="nav__mobile-link">📊 Painel Admin</a>
+</div>
+<div class="toast-container" id="tc"></div>
+<main class="main-content">
+<section class="page-hero">
+  <div class="container">
+    <div class="page-hero__eyebrow">✦ Para profissionais</div>
+    <h1>Faça sua barbearia crescer</h1>
+    <p>Gerencie agendamentos, financeiro e equipe em um só lugar. Comece grátis.</p>
+    <div style="margin-top:var(--space-8)">
+      <a href="admin.html" class="btn btn--primary btn--lg">Ver painel de demonstração</a>
+    </div>
+  </div>
+</section>
+<section class="page-section">
+  <div class="container">
+    <div class="grid grid--3" style="margin-bottom:var(--space-16)">
+      <div class="card">
+        <div style="font-size:1.75rem;margin-bottom:var(--space-3)">📅</div>
+        <h5 style="color:var(--color-navy);margin-bottom:var(--space-2)">Agenda inteligente</h5>
+        <p style="font-size:var(--text-sm)">Receba agendamentos online 24h por dia e veja sua agenda do dia organizada, com a foto IA do corte que o cliente quer.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:1.75rem;margin-bottom:var(--space-3)">💰</div>
+        <h5 style="color:var(--color-navy);margin-bottom:var(--space-2)">Controle financeiro</h5>
+        <p style="font-size:var(--text-sm)">Acompanhe o faturamento do dia, ticket médio e relatórios completos. Saiba exatamente quanto sua barbearia fatura.</p>
+      </div>
+      <div class="card">
+        <div style="font-size:1.75rem;margin-bottom:var(--space-3)">🪒</div>
+        <h5 style="color:var(--color-navy);margin-bottom:var(--space-2)">Gestão de equipe</h5>
+        <p style="font-size:var(--text-sm)">Cadastre vários barbeiros, defina comissões por serviço e acompanhe a performance de cada profissional.</p>
+      </div>
+    </div>
+
+    <div class="prose">
+      <h2>Comece grátis, evolua quando quiser</h2>
+      <p>O cadastro básico é <strong>gratuito</strong>: crie o perfil da sua barbearia, apareça para clientes da sua região e comece a receber agendamentos. Quando quiser desbloquear métricas avançadas e gestão de equipe, o plano <strong>Premium custa R$ 99,90/mês</strong>.</p>
+
+      <h2>Por que entrar na BarberKut?</h2>
+      <ul>
+        <li>Mais clientes encontram sua barbearia online.</li>
+        <li>Menos faltas, com confirmação automática por WhatsApp.</li>
+        <li>O cliente já chega sabendo o corte que quer — graças ao simulador de IA.</li>
+        <li>Você foca no que faz de melhor: cortar cabelo.</li>
+      </ul>
+
+      <div style="text-align:center;margin-top:var(--space-10);display:flex;gap:var(--space-4);justify-content:center;flex-wrap:wrap">
+        <a href="cadastrar-barbearia.html" class="btn btn--primary btn--lg">Cadastrar minha barbearia</a>
+        <a href="precos.html" class="btn btn--secondary btn--lg">Ver planos</a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="footer">
+  <div class="container">
+    <div class="footer__grid">
+      <div>
+        <div class="footer__logo" style="display:flex;align-items:center;gap:3px">
+          <img src="img/logo_white.png" alt="BarberKut" class="logo-dark" />
+          Barber<span>Kut</span>
+        </div>
+        <p class="footer__desc">A plataforma que conecta clientes e barbearias com inteligência artificial.</p>
+      </div>
+      <div>
+        <div class="footer__heading">Produto</div>
+        <div class="footer__links">
+          <a href="ai-simulator.html" class="footer__link">Simulador IA</a>
+          <a href="como-funciona.html" class="footer__link">Como funciona</a>
+          <a href="precos.html" class="footer__link">Preços</a>
+          <a href="para-barbeiros.html" class="footer__link">Para barbeiros</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer__heading">Empresa</div>
+        <div class="footer__links">
+          <a href="sobre.html" class="footer__link">Sobre nós</a>
+          <a href="contato.html" class="footer__link">Contato</a>
+          <a href="para-barbeiros.html" class="footer__link">Seja parceiro</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer__heading">Legal</div>
+        <div class="footer__links">
+          <a href="privacidade.html" class="footer__link">Privacidade</a>
+          <a href="termos.html" class="footer__link">Termos de uso</a>
+          <a href="cookies.html" class="footer__link">Cookies</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <span>© 2026 BarberKut. Todos os direitos reservados.</span>
+      <span>Desenvolvido com ❤ em Timbó, SC</span>
+    </div>
+  </div>
+</footer>
+<script>
+  function toggleNav(){const m=document.getElementById('mobileMenu'),h=document.getElementById('hbg');if(m&&h){m.classList.toggle('open');h.classList.toggle('open');}}
+  function toast(msg,type='info'){const c=document.getElementById('tc');if(!c)return;const t=document.createElement('div');t.className='toast'+(type!=='info'?' toast--'+type:'');t.textContent=({'success':'✓','error':'✕','warning':'⚠','info':'ℹ'}[type]||'ℹ')+' '+msg;c.appendChild(t);setTimeout(()=>{t.style.transition='opacity .4s';t.style.opacity='0'},2600);setTimeout(()=>t.remove(),3100);}
+  document.addEventListener('click',e=>{const m=document.getElementById('mobileMenu'),h=document.getElementById('hbg');if(m&&h&&!e.target.closest('.nav')&&!e.target.closest('#mobileMenu')){m.classList.remove('open');h.classList.remove('open');}});
+</script>
+</body>
+</html>
+
+
+

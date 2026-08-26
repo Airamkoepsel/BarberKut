@@ -1,0 +1,325 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%230B1F3A%22/><text y=%22.9em%22 font-size=%2272%22 x=%2250%25%22 text-anchor=%22middle%22>✂</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="BarberKut — Painel de gestão para barbearias."/>
+  <title>Painel Admin — BarberKut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="css/upgrade.css"/>
+  <style>
+    .logo-dark   { height:28px;width:auto; }
+    .admin-section { display:none }
+    .admin-section.active { display:block; animation:fadeIn .2s ease both }
+    .mob-overlay { display:none;position:fixed;inset:0;background:var(--color-overlay);z-index:1400 }
+    .mob-overlay.open { display:block }
+    @media(max-width:768px){
+      .show-mob { display:flex !important }
+      .admin-layout { display:block !important }
+      .sidebar { position:fixed;left:-100%;top:0;bottom:0;width:260px;height:100vh;z-index:1500;transition:left .25s ease }
+      .sidebar.open { left:0 }
+      .admin-main { padding:var(--space-5) !important }
+    }
+    /* ── fix: o CSS global usa position:absolute para calendário de grade.
+       Na view de lista do admin precisamos de position:relative ── */
+    .schedule-day .schedule-event {
+      position: relative;
+      left: auto;
+      right: auto;
+      margin: 0;
+      min-height: 56px;
+    }
+    /* o ai-thumb continua absolute, mas agora relativo ao event correto */
+    .schedule-day .schedule-event .schedule-event__ai-thumb {
+      position: absolute;
+      right: var(--space-2);
+      bottom: var(--space-2);
+    }
+    /* row: tempo à esquerda + card à direita */
+    .sched-row {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: var(--space-3);
+      align-items: stretch;
+    }
+    .sched-time {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      font-weight: 600;
+      text-align: right;
+      padding-top: var(--space-3);
+      flex-shrink: 0;
+    }
+
+    /* bar chart */
+    .bar-wrap { display:flex;align-items:flex-end;gap:8px;height:180px;padding:0 8px }
+    .bar-col   { display:flex;flex-direction:column;align-items:center;gap:4px;flex:1 }
+    .bar       { width:100%;border-radius:6px 6px 0 0;background:var(--color-navy);min-height:4px;transition:opacity .15s }
+    .bar:hover { opacity:.7 }
+    .bar-val   { font-size:9px;color:var(--color-text-muted);font-weight:500 }
+    .bar-lbl   { font-size:11px;color:var(--color-text-muted);flex:1;text-align:center }
+    @media(max-width:768px){.premium-cols{grid-template-columns:1fr !important}}
+  </style>
+</head>
+<body>
+
+<div class="mob-overlay" id="overlay" onclick="closeSb()"></div>
+<div class="toast-container" id="tc"></div>
+
+<div class="admin-layout">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Logo -->
+    <a href="index.html" style="text-decoration:none">
+      <div class="sidebar__logo" style="display:flex;align-items:center;gap:3px">
+        <img src="img/logo_white.png" alt="BarberKut" class="logo-dark"/>
+        Barber<span>Kut</span>
+      </div>
+    </a>
+
+    <nav class="sidebar__nav">
+      <div class="sidebar__section-label">Menu</div>
+      <a href="#" class="sidebar__item active" id="sn-agenda"     onclick="show('agenda',this);return false">📅 Agenda do dia</a>
+      <a href="#" class="sidebar__item"        id="sn-financeiro" onclick="show('financeiro',this);return false">💰 Financeiro</a>
+      <a href="#" class="sidebar__item"        id="sn-clientes"   onclick="show('clientes',this);return false">👥 Clientes</a>
+      <div class="sidebar__section-label">Premium</div>
+      <a href="#" class="sidebar__item"        id="sn-premium"    onclick="show('premium',this);return false">✦ Premium</a>
+      <a href="#" class="sidebar__item"        id="sn-config"     onclick="show('config',this);return false">⚙ Configurações</a>
+    </nav>
+
+    <div class="sidebar__premium">
+      <div class="sidebar__premium-title">✦ Ativar Premium</div>
+      <div class="sidebar__premium-desc">Métricas avançadas e gestão de equipe por R$&nbsp;99,90/mês.</div>
+      <button class="btn btn--primary btn--sm btn--full" onclick="toast('Em breve: ativação do Premium!','info')">Assinar agora</button>
+    </div>
+
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <main class="admin-main" style="padding:var(--space-8)">
+
+    <!-- Topbar -->
+    <div class="admin-header">
+      <div style="display:flex;align-items:center;gap:var(--space-3)">
+        <button class="btn-icon show-mob" id="sidebarBtn" style="display:none" onclick="toggleSb()" aria-label="Menu">☰</button>
+        <div>
+          <div class="admin-header__title" id="secTitle">Agenda do Dia</div>
+          <div class="admin-header__subtitle" id="secSub">Terça-feira, 10 de junho de 2025</div>
+        </div>
+      </div>
+      <a href="index.html" class="btn btn--ghost btn--sm">← Voltar ao site</a>
+    </div>
+
+    <!-- ── AGENDA ── -->
+    <section id="sec-agenda" class="admin-section active">
+      <div class="financial-stats" style="margin-bottom:var(--space-6)">
+        <div class="stat-card"><div class="stat-card__label">Agendamentos hoje</div><div class="stat-card__value">8</div><span class="stat-card__delta stat-card__delta--up">↑ +2 vs ontem</span></div>
+        <div class="stat-card"><div class="stat-card__label">Faturamento previsto</div><div class="stat-card__value">R$320</div><span class="stat-card__delta stat-card__delta--up">↑ +R$65</span></div>
+        <div class="stat-card"><div class="stat-card__label">Próximo cliente</div><div class="stat-card__value" style="font-size:var(--text-xl)">10:30</div><span class="stat-card__delta stat-card__delta--up">em 25 min</span></div>
+      </div>
+      <div class="schedule-day">
+        <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--color-border);display:flex;justify-content:space-between;align-items:center">
+          <h5 style="color:var(--color-navy);margin:0">Agenda de hoje — Terça, 10 Jun</h5>
+          <button class="btn btn--ghost btn--sm" onclick="toast('Em breve: novo horário manual!','info')">+ Novo horário</button>
+        </div>
+        <div style="padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3)">
+
+          <div class="sched-row">
+            <div class="sched-time">08:00</div>
+            <div class="schedule-event schedule-event--green">
+              <div class="schedule-event__client">Lucas Ferreira <span style="opacity:.8">✓ Concluído</span></div>
+              <div class="schedule-event__service">Degradê · R$ 35</div>
+              <div class="schedule-event__ai-thumb" style="font-size:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15)">🤳</div>
+            </div>
+          </div>
+
+          <div class="sched-row">
+            <div class="sched-time">09:00</div>
+            <div class="schedule-event schedule-event--green">
+              <div class="schedule-event__client">Pedro Alves <span style="opacity:.8">✓ Concluído</span></div>
+              <div class="schedule-event__service">Barba · R$ 20</div>
+            </div>
+          </div>
+
+          <div class="sched-row">
+            <div class="sched-time" style="color:var(--color-red);font-weight:700">09:30</div>
+            <div class="schedule-event schedule-event--red">
+              <div class="schedule-event__client">Carlos Mendes <span style="opacity:.85">⏱ Agora</span></div>
+              <div class="schedule-event__service">Degradê + Barba · R$ 50</div>
+              <div class="schedule-event__ai-thumb" style="font-size:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15)">🤳</div>
+            </div>
+          </div>
+
+          <div class="sched-row">
+            <div class="sched-time">10:30</div>
+            <div class="schedule-event">
+              <div class="schedule-event__client">Marcos Lima</div>
+              <div class="schedule-event__service">Corte Social · R$ 25</div>
+            </div>
+          </div>
+
+          <div class="sched-row">
+            <div class="sched-time">11:00</div>
+            <div class="schedule-event">
+              <div class="schedule-event__client">João Paulo</div>
+              <div class="schedule-event__service">Degradê · R$ 35</div>
+              <div class="schedule-event__ai-thumb" style="font-size:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15)" title="Foto IA disponível">🤳</div>
+            </div>
+          </div>
+
+          <div class="sched-row">
+            <div class="sched-time">13:00</div>
+            <div class="schedule-event">
+              <div class="schedule-event__client">Felipe Santos</div>
+              <div class="schedule-event__service">Pezinho · R$ 15</div>
+            </div>
+          </div>
+
+          <div class="sched-row">
+            <div class="sched-time">14:00</div>
+            <div class="schedule-event">
+              <div class="schedule-event__client">André Costa</div>
+              <div class="schedule-event__service">Degradê + Barba · R$ 50</div>
+              <div class="schedule-event__ai-thumb" style="font-size:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15)">🤳</div>
+            </div>
+          </div>
+
+          <div class="sched-row">
+            <div class="sched-time">16:00</div>
+            <div class="schedule-event">
+              <div class="schedule-event__client">Rodrigo Lima</div>
+              <div class="schedule-event__service">Corte Infantil · R$ 25</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ── FINANCEIRO ── -->
+    <section id="sec-financeiro" class="admin-section">
+      <div class="financial-stats">
+        <div class="stat-card"><div class="stat-card__label">Receita do dia</div><div class="stat-card__value">R$255</div><span class="stat-card__delta stat-card__delta--up">↑ +18% vs ontem</span></div>
+        <div class="stat-card"><div class="stat-card__label">Cortes realizados</div><div class="stat-card__value">5</div><span class="stat-card__delta stat-card__delta--down">↓ -1 vs ontem</span></div>
+        <div class="stat-card"><div class="stat-card__label">Ticket médio</div><div class="stat-card__value">R$51</div><span class="stat-card__delta stat-card__delta--up">↑ +R$8</span></div>
+        <div class="stat-card"><div class="stat-card__label">Receita da semana</div><div class="stat-card__value">R$1.2k</div><span class="stat-card__delta stat-card__delta--up">↑ +22%</span></div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-container__header">
+          <span class="chart-container__title">Faturamento — últimos 7 dias</span>
+          <select class="form-control" style="width:auto;padding:var(--space-2) var(--space-4);font-size:var(--text-sm)"><option>Últimos 7 dias</option><option>Este mês</option></select>
+        </div>
+        <div class="bar-wrap" id="bars"></div>
+        <div style="display:flex;padding:0 8px;margin-top:var(--space-2)" id="barLabels"></div>
+      </div>
+      <div class="transactions-table">
+        <div style="padding:var(--space-5);border-bottom:1px solid var(--color-border);display:flex;justify-content:space-between;align-items:center">
+          <h5 style="color:var(--color-navy);margin:0">Transações de hoje</h5>
+          <button class="btn btn--ghost btn--sm" onclick="toast('Exportando CSV...','info')">⬇ Exportar</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Horário</th><th>Cliente</th><th>Serviço</th><th>Pagamento</th><th>Valor</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>08:00</td><td>Lucas Ferreira</td><td>Degradê</td><td>PIX</td><td class="amount--positive">R$ 35,00</td><td><span class="badge badge--green">Pago</span></td></tr>
+              <tr><td>09:00</td><td>Pedro Alves</td><td>Barba</td><td>Cartão</td><td class="amount--positive">R$ 20,00</td><td><span class="badge badge--green">Pago</span></td></tr>
+              <tr><td>09:30</td><td>Carlos Mendes</td><td>Degradê + Barba</td><td>PIX</td><td class="amount--positive">R$ 50,00</td><td><span class="badge badge--yellow">Em andamento</span></td></tr>
+              <tr><td>10:30</td><td>Marcos Lima</td><td>Corte Social</td><td>—</td><td style="color:var(--color-text-muted)">R$ 25,00</td><td><span class="badge badge--gray">Pendente</span></td></tr>
+              <tr><td>11:00</td><td>João Paulo</td><td>Degradê</td><td>—</td><td style="color:var(--color-text-muted)">R$ 35,00</td><td><span class="badge badge--gray">Pendente</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CLIENTES ── -->
+    <section id="sec-clientes" class="admin-section">
+      <div class="card" style="text-align:center;padding:var(--space-16)">
+        <div style="font-size:3rem;margin-bottom:var(--space-4)">👥</div>
+        <h4 style="color:var(--color-navy);margin-bottom:var(--space-3)">Cadastro de clientes</h4>
+        <p style="max-width:360px;margin-inline:auto;margin-bottom:var(--space-6)">Histórico de visitas, preferências e gestão completa. Disponível no plano Premium.</p>
+        <button class="btn btn--primary" onclick="toast('Em breve: gestão de clientes!','info')">✦ Ativar Premium</button>
+      </div>
+    </section>
+
+    <!-- ── MÉTRICAS (Premium gate) ── -->
+    <!-- ── PREMIUM (Métricas + Equipe unificados) ── -->
+    <section id="sec-premium" class="admin-section">
+      <div class="premium-gate" style="padding-bottom:var(--space-8)">
+        <div class="premium-gate__icon">✦</div>
+        <h3 class="premium-gate__title">Desbloqueie o BarberKut Premium</h3>
+        <p class="premium-gate__desc">Tenha acesso a métricas avançadas e à gestão completa da sua equipe — tudo em um único plano.</p>
+        <div class="premium-gate__price">
+          <span class="premium-gate__price-amount">R$ 99,90</span>
+          <span class="premium-gate__price-period">/mês</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);text-align:left;margin-bottom:var(--space-2)" class="premium-cols">
+          <div class="premium-features-list" style="margin:0">
+            <div style="font-weight:600;color:var(--color-navy);display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-2)">📊 Métricas avançadas</div>
+            <div class="premium-feature"><span class="premium-feature__check">✓</span>Taxa de retorno de clientes</div>
+            <div class="premium-feature"><span class="premium-feature__check">✓</span>Gráficos de lucro mensais e anuais</div>
+            <div class="premium-feature"><span class="premium-feature__check">✓</span>Horários de maior movimento</div>
+            <div class="premium-feature"><span class="premium-feature__check">✓</span>Relatórios exportáveis em PDF</div>
+          </div>
+          <div class="premium-features-list" style="margin:0">
+            <div style="font-weight:600;color:var(--color-navy);display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-2)">🪒 Gestão de equipe</div>
+            <div class="premium-feature"><span class="premium-feature__check">✓</span>Múltiplos perfis de barbeiro</div>
+            <div class="premium-feature"><span class="premium-feature__check">✓</span>Comissões configuráveis por serviço</div>
+            <div class="premium-feature"><span class="premium-feature__check">✓</span>Agenda individual por barbeiro</div>
+            <div class="premium-feature"><span class="premium-feature__check">✓</span>Relatório de performance da equipe</div>
+          </div>
+        </div>
+
+        <button class="btn btn--primary btn--full btn--lg" style="margin-top:var(--space-6)" onclick="toast('Redirecionando para o checkout...','info')">Assinar Premium agora</button>
+      </div>
+
+      <!-- Prévia da equipe (desfocada) -->
+      <div style="margin-top:var(--space-8)">
+        <p style="font-size:var(--text-sm);color:var(--color-text-muted);text-align:center;margin-bottom:var(--space-4)">Prévia da gestão de equipe</p>
+        <div class="team-grid" style="opacity:.4;filter:blur(3px);pointer-events:none">
+          <div class="team-member-card"><div class="avatar avatar--xl" style="margin:0 auto">CM</div><div class="team-member-card__name">Carlos Mendes</div><div class="team-member-card__role">Barbeiro Sênior</div><div class="team-member-card__commission">40% comissão</div></div>
+          <div class="team-member-card"><div class="avatar avatar--xl" style="margin:0 auto;background:var(--color-red)">RC</div><div class="team-member-card__name">Rafael Costa</div><div class="team-member-card__role">Barbeiro Pleno</div><div class="team-member-card__commission">35% comissão</div></div>
+          <div class="team-member-card"><div class="avatar avatar--xl" style="margin:0 auto;background:#2D1B69">DA</div><div class="team-member-card__name">Diego Alves</div><div class="team-member-card__role">Barbeiro Júnior</div><div class="team-member-card__commission">30% comissão</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CONFIG ── -->
+    <section id="sec-config" class="admin-section">
+      <div class="card">
+        <h5 style="color:var(--color-navy);margin-bottom:var(--space-6)">Configurações da barbearia</h5>
+        <div class="flex-col gap-5">
+          <div class="form-group"><label class="form-label">Nome da barbearia</label><input class="form-control" value="Barbearia Central"/></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+            <div class="form-group"><label class="form-label">Abre às</label><input class="form-control" type="time" value="08:00"/></div>
+            <div class="form-group"><label class="form-label">Fecha às</label><input class="form-control" type="time" value="18:00"/></div>
+          </div>
+          <div class="form-group"><label class="form-label">WhatsApp</label><input class="form-control" type="tel" placeholder="(47) 9 9999-9999"/></div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div><div style="font-size:var(--text-sm);font-weight:500;color:var(--color-navy)">Aceitar novos agendamentos</div><div style="font-size:var(--text-xs);color:var(--color-text-muted)">Desabilite para pausar a agenda temporariamente</div></div>
+            <label class="toggle"><input type="checkbox" checked/><div class="toggle__track"><div class="toggle__thumb"></div></div></label>
+          </div>
+          <button class="btn btn--primary" onclick="toast('Configurações salvas!','success')">Salvar configurações</button>
+        </div>
+      </div>
+    </section>
+
+  </main><!-- /admin-main -->
+</div><!-- /admin-layout -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/global.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
+
+
+

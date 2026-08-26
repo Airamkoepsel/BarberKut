@@ -1,0 +1,341 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%230B1F3A%22/><text y=%22.9em%22 font-size=%2272%22 x=%2250%25%22 text-anchor=%22middle%22>✂</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="BarberKut — Descubra barbearias parceiras, simule seu corte com IA e agende em segundos. Sem ligação, sem fila." />
+  <meta property="og:title"       content="BarberKut — Agende seu corte com IA" />
+  <meta property="og:description" content="Encontre barbearias, simule cortes com IA e agende sem fila." />
+  <meta property="og:type"        content="website" />
+  <title>BarberKut — Agende seu corte com IA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/upgrade.css" />
+  <style>
+    /* ── logos: fundo preto removido por CSS ── */
+    .logo-nav  { height:28px;width:auto; }        /* preto→branco, bg preto→branco (some no nav branco) */
+    .logo-dark { height:28px;width:auto; }   /* bg preto some no fundo navy */
+
+    /* ── placeholders dos cards ── */
+    .bc-g1{background:linear-gradient(140deg,#0B1F3A,#1A3A6B)}
+    .bc-g2{background:linear-gradient(140deg,#1A1A2E,#16213E)}
+    .bc-g3{background:linear-gradient(140deg,#2D1B69,#1A1033)}
+    .bc-g4{background:linear-gradient(140deg,#1B2838,#0B1F3A)}
+    .bc-g5{background:linear-gradient(140deg,#0D2137,#1E3A4A)}
+    .bc-g6{background:linear-gradient(140deg,#1A0B2E,#2D1B69)}
+    .bc-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:2.5rem}
+
+    /* ── mapa placeholder ── */
+    .map-ph{height:260px;background:linear-gradient(135deg,#e8f0fe,#c7d7f4);border-radius:var(--radius-xl);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-2);color:var(--color-text-muted);font-size:var(--text-sm)}
+
+    /* ── AI banner grid (responsive) ── */
+    @media(max-width:768px){.ai-banner-grid{grid-template-columns:1fr !important}}
+  </style>
+</head>
+<body>
+
+<!-- ══════════════ NAV ══════════════ -->
+<nav class="nav" id="mainNav">
+  <div class="nav__inner">
+    <a href="index.html" class="nav__logo">
+      <img src="img/logo_navy.png" alt="" aria-hidden="true" class="logo-nav" />
+      Barber<span>Kut</span>
+    </a>
+    <div class="nav__links">
+      <a href="index.html"        class="nav__link active">Início</a>
+      <a href="#discoverySection" class="nav__link" onclick="scrollDisc();return false;">Barbearias</a>
+      <a href="ai-simulator.html" class="nav__link">Simulador IA</a>
+      <a href="admin.html"        class="nav__link">Painel Admin</a>
+    </div>
+    <div class="nav__actions">
+      <button class="btn btn--ghost btn--sm" onclick="openModal('mLogin')">Entrar</button>
+      <a href="booking.html" class="btn btn--primary btn--sm">Agendar agora</a>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Mudar para tema escuro" title="Alternar tema">
+      <span class="theme-toggle__icon">🌙</span>
+    </button>
+      <div class="avatar" title="Perfil">JS</div>
+    </div>
+    <button class="nav__hamburger" id="hbg" aria-label="Menu" onclick="toggleNav()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- mobile menu -->
+<div class="nav__mobile-menu" id="mobileMenu">
+  <a href="index.html"        class="nav__mobile-link">🏠 Início</a>
+  <a href="#discoverySection" class="nav__mobile-link" onclick="toggleNav();scrollDisc();return false;">✂ Barbearias</a>
+  <a href="ai-simulator.html" class="nav__mobile-link">🤖 Simulador IA</a>
+  <a href="admin.html"        class="nav__mobile-link">📊 Painel Admin</a>
+  <hr class="divider" style="margin:var(--space-2) 0"/>
+  <a href="booking.html" class="btn btn--primary btn--full">Agendar agora</a>
+</div>
+
+<!-- toast -->
+<div class="toast-container" id="tc"></div>
+
+<!-- modal login -->
+<div class="modal-overlay" id="mLogin">
+  <div class="modal modal--center">
+    <div class="modal__header">
+      <span class="modal__title">Entrar na BarberKut</span>
+      <button class="btn-icon btn-icon--sm" onclick="closeModal('mLogin')" aria-label="Fechar">✕</button>
+    </div>
+    <div class="modal__body">
+      <div class="flex-col gap-4">
+        <div class="form-group">
+          <label class="form-label form-label--required">E-mail ou telefone</label>
+          <input class="form-control" type="text" placeholder="seu@email.com"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label form-label--required">Senha</label>
+          <div class="input-wrapper">
+            <input class="form-control" type="password" placeholder="••••••••" id="pwdLogin"/>
+            <button class="input-action btn-icon btn-icon--sm" onclick="togglePwd('pwdLogin')" type="button">👁</button>
+          </div>
+        </div>
+        <a href="#" style="font-size:var(--text-sm);color:var(--color-navy);font-weight:500">Esqueci minha senha</a>
+      </div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost" onclick="closeModal('mLogin')">Cancelar</button>
+      <button class="btn btn--primary" onclick="closeModal('mLogin');toast('Bem-vindo! 👋','success')">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HERO ══════════════ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero__eyebrow">✦ Novo jeito de agendar</div>
+    <h1 class="hero__title">O melhor corte começa<br>com a <em>escolha certa</em></h1>
+    <p class="hero__subtitle">Encontre barbearias parceiras, simule seu próximo corte com IA e agende em segundos — sem ligação, sem fila.</p>
+    <div class="hero__cta">
+      <a href="booking.html"       class="btn btn--primary btn--xl">Agendar agora</a>
+      <a href="ai-simulator.html"  class="btn btn--secondary btn--xl">Testar simulador IA</a>
+    </div>
+    <div class="hero__search">
+      <div class="search-bar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--color-text-light);flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" placeholder="Buscar barbearia, bairro ou serviço..." id="heroSearch" oninput="filterCards()"/>
+        <button class="btn btn--navy btn--sm" onclick="scrollDisc()">Buscar</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ COMO FUNCIONA ══════════════ -->
+<section style="padding:var(--space-16) 0;background:var(--color-surface)">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:var(--space-12)">
+      <h2 style="color:var(--color-navy);margin-bottom:var(--space-3)">Como funciona</h2>
+      <p style="max-width:440px;margin-inline:auto">Três passos simples do descobrimento até a cadeira.</p>
+    </div>
+    <div class="grid grid--3">
+      <div style="text-align:center;padding:var(--space-6)">
+        <div style="width:56px;height:56px;border-radius:var(--radius-xl);background:rgba(229,56,59,.1);display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-4);font-size:1.5rem">🗺</div>
+        <h5 style="color:var(--color-navy);margin-bottom:var(--space-2)">Descubra</h5>
+        <p style="font-size:var(--text-sm)">Barbearias próximas com avaliações reais e preços transparentes.</p>
+      </div>
+      <div style="text-align:center;padding:var(--space-6)">
+        <div style="width:56px;height:56px;border-radius:var(--radius-xl);background:rgba(11,31,58,.08);display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-4);font-size:1.5rem">🤖</div>
+        <h5 style="color:var(--color-navy);margin-bottom:var(--space-2)">Simule com IA</h5>
+        <p style="font-size:var(--text-sm)">Experimente cortes diferentes na sua foto antes de sentar na cadeira.</p>
+      </div>
+      <div style="text-align:center;padding:var(--space-6)">
+        <div style="width:56px;height:56px;border-radius:var(--radius-xl);background:rgba(52,199,89,.12);display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-4);font-size:1.5rem">📅</div>
+        <h5 style="color:var(--color-navy);margin-bottom:var(--space-2)">Agende</h5>
+        <p style="font-size:var(--text-sm)">Escolha barbeiro, data e horário. Confirmação no WhatsApp na hora.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ DISCOVERY ══════════════ -->
+<section class="discovery" id="discoverySection">
+  <div class="container">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
+      <h2 style="color:var(--color-navy)">Barbearias perto de você</h2>
+      <span style="font-size:var(--text-sm);color:var(--color-text-muted);display:flex;align-items:center;gap:var(--space-2)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        Timbó, SC
+      </span>
+    </div>
+
+    <div class="discovery__filters" id="filterRow">
+      <button class="filter-chip active" onclick="filterTag(this,'todos')"  type="button">Todos</button>
+      <button class="filter-chip"        onclick="filterTag(this,'aberto')" type="button">🟢 Aberto agora</button>
+      <button class="filter-chip"        onclick="filterTag(this,'prox')"   type="button">📍 Mais próximos</button>
+      <button class="filter-chip"        onclick="filterTag(this,'top')"    type="button">⭐ Mais bem avaliados</button>
+      <button class="filter-chip"        onclick="filterTag(this,'barato')" type="button">💰 Menor preço</button>
+    </div>
+
+    <div class="discovery__results-header">
+      <p class="discovery__count"><strong id="cardCount">6</strong> barbearias encontradas</p>
+      <select class="form-control" style="width:auto;padding:var(--space-2) var(--space-4);font-size:var(--text-sm)" onchange="toast('Ordenando por: '+this.options[this.selectedIndex].text,'info')">
+        <option>Relevância</option><option>Distância</option><option>Melhor avaliados</option><option>Menor preço</option>
+      </select>
+    </div>
+
+    <div class="grid grid--auto-md" id="barbershopGrid">
+
+      <a href="barbearia.html?id=central" class="card barbershop-card card--interactive" data-tags="todos aberto prox top" style="text-decoration:none">
+        <div class="barbershop-card__image bc-g1"><div class="bc-ph">✂</div><div class="barbershop-card__badge"><span class="badge badge--green">Aberto</span></div></div>
+        <div class="barbershop-card__body">
+          <h5 class="barbershop-card__name">Barbearia Central</h5>
+          <div class="barbershop-card__meta"><span class="barbershop-card__rating">★ 4.9 <span style="font-weight:400;color:var(--color-text-muted)">(124)</span></span><span>· 0.3 km · Centro</span></div>
+          <div class="barbershop-card__footer"><span style="font-size:var(--text-sm);color:var(--color-text-muted)">A partir de <strong style="color:var(--color-navy)">R$ 35</strong></span><span class="btn btn--primary btn--sm">Agendar</span></div>
+        </div>
+      </a>
+
+      <a href="barbearia.html?id=studio-blade" class="card barbershop-card card--interactive" data-tags="todos aberto top" style="text-decoration:none">
+        <div class="barbershop-card__image bc-g2"><div class="bc-ph">💈</div><div class="barbershop-card__badge"><span class="badge badge--green">Aberto</span></div></div>
+        <div class="barbershop-card__body">
+          <h5 class="barbershop-card__name">Studio Blade</h5>
+          <div class="barbershop-card__meta"><span class="barbershop-card__rating">★ 4.8 <span style="font-weight:400;color:var(--color-text-muted)">(89)</span></span><span>· 0.8 km · Av. Principal</span></div>
+          <div class="barbershop-card__footer"><span style="font-size:var(--text-sm);color:var(--color-text-muted)">A partir de <strong style="color:var(--color-navy)">R$ 45</strong></span><span class="btn btn--primary btn--sm">Agendar</span></div>
+        </div>
+      </a>
+
+      <a href="barbearia.html?id=corte-arte" class="card barbershop-card card--interactive" data-tags="todos aberto barato" style="text-decoration:none">
+        <div class="barbershop-card__image bc-g3"><div class="bc-ph">🪒</div><div class="barbershop-card__badge"><span class="badge badge--green">Aberto</span></div></div>
+        <div class="barbershop-card__body">
+          <h5 class="barbershop-card__name">Corte &amp; Arte</h5>
+          <div class="barbershop-card__meta"><span class="barbershop-card__rating">★ 4.7 <span style="font-weight:400;color:var(--color-text-muted)">(67)</span></span><span>· 1.2 km · Bairro Sul</span></div>
+          <div class="barbershop-card__footer"><span style="font-size:var(--text-sm);color:var(--color-text-muted)">A partir de <strong style="color:var(--color-navy)">R$ 30</strong></span><span class="btn btn--primary btn--sm">Agendar</span></div>
+        </div>
+      </a>
+
+      <a href="barbearia.html?id=the-barber-shop" class="card barbershop-card card--interactive" data-tags="todos aberto top" style="text-decoration:none">
+        <div class="barbershop-card__image bc-g4"><div class="bc-ph">✂</div><div class="barbershop-card__badge"><span class="badge badge--green">Aberto</span></div></div>
+        <div class="barbershop-card__body">
+          <h5 class="barbershop-card__name">The Barber Shop</h5>
+          <div class="barbershop-card__meta"><span class="barbershop-card__rating">★ 4.9 <span style="font-weight:400;color:var(--color-text-muted)">(201)</span></span><span>· 1.5 km · Shopping Norte</span></div>
+          <div class="barbershop-card__footer"><span style="font-size:var(--text-sm);color:var(--color-text-muted)">A partir de <strong style="color:var(--color-navy)">R$ 50</strong></span><span class="btn btn--primary btn--sm">Agendar</span></div>
+        </div>
+      </a>
+
+      <a href="barbearia.html?id=navalha-dourada" class="card barbershop-card card--interactive" data-tags="todos prox" style="text-decoration:none">
+        <div class="barbershop-card__image bc-g5"><div class="bc-ph">💈</div><div class="barbershop-card__badge"><span class="badge badge--yellow">Abre 14h</span></div></div>
+        <div class="barbershop-card__body">
+          <h5 class="barbershop-card__name">Navalha Dourada</h5>
+          <div class="barbershop-card__meta"><span class="barbershop-card__rating">★ 4.6 <span style="font-weight:400;color:var(--color-text-muted)">(45)</span></span><span>· 2.1 km · Zona Leste</span></div>
+          <div class="barbershop-card__footer"><span style="font-size:var(--text-sm);color:var(--color-text-muted)">A partir de <strong style="color:var(--color-navy)">R$ 35</strong></span><span class="btn btn--ghost btn--sm" onclick="event.preventDefault();toast('Barbearia fechada no momento','warning')">Fechado</span></div>
+        </div>
+      </a>
+
+      <a href="barbearia.html?id=dom-barbeiro" class="card barbershop-card card--interactive" data-tags="todos aberto prox" style="text-decoration:none">
+        <div class="barbershop-card__image bc-g6"><div class="bc-ph">🪒</div><div class="barbershop-card__badge"><span class="badge badge--green">Aberto</span></div></div>
+        <div class="barbershop-card__body">
+          <h5 class="barbershop-card__name">Dom Barbeiro</h5>
+          <div class="barbershop-card__meta"><span class="barbershop-card__rating">★ 4.8 <span style="font-weight:400;color:var(--color-text-muted)">(112)</span></span><span>· 2.8 km · Jardins</span></div>
+          <div class="barbershop-card__footer"><span style="font-size:var(--text-sm);color:var(--color-text-muted)">A partir de <strong style="color:var(--color-navy)">R$ 40</strong></span><span class="btn btn--primary btn--sm">Agendar</span></div>
+        </div>
+      </a>
+
+    </div><!-- /grid -->
+
+    <div style="margin-top:var(--space-8)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-3)">
+        <h3 style="color:var(--color-navy);margin:0">No mapa</h3>
+        <button class="btn btn--secondary btn--sm" id="locBtn" onclick="locateMe()">
+          📍 Usar minha localização
+        </button>
+      </div>
+      <div id="map" style="height:380px;border-radius:var(--radius-xl);overflow:hidden;box-shadow:var(--shadow-card);z-index:1"></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════ BANNER IA ══════════════ -->
+<section class="bg-navy-section" style="padding:var(--space-20) 0;background:var(--color-navy)">
+  <div class="container">
+    <div class="ai-banner-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-12);align-items:center">
+      <div>
+        <div class="hero__eyebrow" style="color:var(--color-red)">✦ Exclusivo BarberKut</div>
+        <h2 style="color:#FFF;margin-bottom:var(--space-4);letter-spacing:-.02em">Veja como ficará o corte <em style="font-style:normal;color:var(--color-red)">antes</em> de agendar</h2>
+        <p style="color:rgba(255,255,255,.6);margin-bottom:var(--space-8);line-height:var(--lh-relaxed)">Nosso simulador com IA aplica qualquer corte do catálogo na sua foto. 2 testes grátis por mês. R$&nbsp;2,00 por teste adicional.</p>
+        <a href="ai-simulator.html" class="btn btn--primary btn--lg">Experimentar grátis →</a>
+      </div>
+      <div style="display:flex;gap:var(--space-4)">
+        <div style="flex:1;aspect-ratio:3/4;background:rgba(255,255,255,.07);border-radius:var(--radius-2xl);display:flex;align-items:center;justify-content:center;font-size:3rem;color:rgba(255,255,255,.2)">📷</div>
+        <div style="flex:1;aspect-ratio:3/4;background:rgba(229,56,59,.12);border-radius:var(--radius-2xl);display:flex;align-items:center;justify-content:center;font-size:3rem;color:rgba(229,56,59,.4);border:1px solid rgba(229,56,59,.2)">✨</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ CTA BARBEIROS ══════════════ -->
+<section style="padding:var(--space-20) 0;background:var(--color-surface)">
+  <div class="container" style="text-align:center;max-width:var(--container-md)">
+    <h2 style="color:var(--color-navy);margin-bottom:var(--space-4)">Você é barbeiro?</h2>
+    <p style="margin-bottom:var(--space-8)">Cadastre sua barbearia e gerencie agendamentos, financeiro e equipe em um só lugar. Plano básico gratuito — Premium por R$&nbsp;99,90/mês.</p>
+    <div style="display:flex;gap:var(--space-4);justify-content:center;flex-wrap:wrap">
+      <a href="admin.html"                class="btn btn--navy btn--lg">Ver painel admin</a>
+      <a href="cadastrar-barbearia.html" class="btn btn--secondary btn--lg">Cadastrar barbearia</a>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ FOOTER ══════════════ -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer__grid">
+      <div>
+        <div class="footer__logo" style="display:flex;align-items:center;gap:3px">
+          <img src="img/logo_white.png" alt="BarberKut" class="logo-dark" />
+          Barber<span>Kut</span>
+        </div>
+        <p class="footer__desc">A plataforma que conecta clientes e barbearias com inteligência artificial.</p>
+      </div>
+      <div>
+        <div class="footer__heading">Produto</div>
+        <div class="footer__links">
+          <a href="ai-simulator.html" class="footer__link">Simulador IA</a>
+          <a href="como-funciona.html" class="footer__link">Como funciona</a>
+          <a href="precos.html" class="footer__link">Preços</a>
+          <a href="para-barbeiros.html" class="footer__link">Para barbeiros</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer__heading">Empresa</div>
+        <div class="footer__links">
+          <a href="sobre.html" class="footer__link">Sobre nós</a>
+          <a href="contato.html" class="footer__link">Contato</a>
+          <a href="para-barbeiros.html" class="footer__link">Seja parceiro</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer__heading">Legal</div>
+        <div class="footer__links">
+          <a href="privacidade.html" class="footer__link">Privacidade</a>
+          <a href="termos.html" class="footer__link">Termos de uso</a>
+          <a href="cookies.html" class="footer__link">Cookies</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <span>© 2026 BarberKut. Todos os direitos reservados.</span>
+      <span>Desenvolvido com ❤ em Timbó, SC</span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script src="js/data.js"></script>
+<script src="js/global.js"></script>
+<script src="js/index.js"></script>
+</body>
+</html>
+
+
+
+
