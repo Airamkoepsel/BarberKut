@@ -28,7 +28,8 @@ async function _appts() {
       .eq('user_id', u.id).order('created_at', { ascending: false });
     return (data || []).map(a => ({
       id: a.id, shopId: a.shop_id, shopName: a.shop_name, service: a.service,
-      price: a.price, barber: a.barber, date: a.appointment_date, time: a.appointment_time
+      price: a.price, barber: a.barber, date: a.appointment_date, time: a.appointment_time,
+      status: a.status
     }));
   }
   try { return JSON.parse(localStorage.getItem('bk-appointments') || '[]'); } catch { return []; }
@@ -85,26 +86,27 @@ async function renderAppointments() {
     </div>`;
     return;
   }
-  el.innerHTML = _cachedAppts.map((a, i) => `
-    <div class="appt-card">
-      <div class="appt-card__icon">✂</div>
+  el.innerHTML = _cachedAppts.map((a, i) => {
+    const cancelado = a.status === 'cancelled';
+    return `<div class="appt-card" style="${cancelado ? 'opacity:.5' : ''}">
+      <div class="appt-card__icon">${cancelado ? '✕' : '✂'}</div>
       <div class="appt-card__info">
-        <div class="appt-card__svc">${a.service}</div>
-        <div class="appt-card__meta">${a.shopName}${a.barber ? ' · ' + a.barber : ''} · R$ ${Number(a.price).toFixed(0)}</div>
+        <div class="appt-card__svc" style="${cancelado ? 'text-decoration:line-through' : ''}">${a.service}</div>
+        <div class="appt-card__meta">${a.shopName}${a.barber ? ' · ' + a.barber : ''} · R$ ${Number(a.price).toFixed(0)}${cancelado ? ' · <span style="color:var(--color-red)">Cancelado</span>' : ''}</div>
       </div>
       <div class="appt-card__when">
         <div class="appt-card__date">${a.date || '—'}</div>
         <div class="appt-card__time">${a.time || ''}</div>
       </div>
-      <button class="btn-icon btn-icon--sm" onclick="cancelAppt(${i},'${a.id || ''}')" title="Cancelar" aria-label="Cancelar" style="margin-left:var(--space-2)">🗑</button>
-    </div>`
-  ).join('');
+      ${!cancelado ? `<button class="btn-icon btn-icon--sm" onclick="cancelAppt(${i},'${a.id || ''}')" title="Cancelar" aria-label="Cancelar" style="margin-left:var(--space-2)">🗑</button>` : ''}
+    </div>`;
+  }).join('');
 }
 
 async function cancelAppt(idx, supabaseId) {
   const u = bkUser();
   if (u && window.supabase && supabaseId) {
-    await window.supabase.from('appointments').delete().eq('id', supabaseId);
+    await window.supabase.from('appointments').update({ status: 'cancelled' }).eq('id', supabaseId);
   } else {
     const list = JSON.parse(localStorage.getItem('bk-appointments') || '[]');
     list.splice(idx, 1);
