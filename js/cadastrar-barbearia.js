@@ -134,45 +134,85 @@ function renderReview() {
 }
 
 /* ── Conclusão: monta o objeto e salva ─────────────────────── */
-function submitShop() {
+async function submitShop() {
   const services = collectServices();
   if (!services.length) { toast('Adicione ao menos um serviço.', 'error'); return; }
 
   const name   = val('fName');
   const covers = ['bc-g1', 'bc-g2', 'bc-g3', 'bc-g4', 'bc-g5', 'bc-g6'];
   const id     = _slug(name) + '-' + Math.random().toString(36).slice(2, 6);
+  const slug   = _slug(name);
+  const hours  = collectHours();
+  const amens  = collectAmenities();
+  const user   = (typeof bkUser === 'function') ? bkUser() : null;
 
-  const shop = {
-    id, slug: _slug(name), name,
-    tagline: val('fTagline') || 'Nova barbearia na BarberKut.',
-    cover: covers[Math.floor(Math.random() * covers.length)],
-    icon: val('fIcon') || '✂',
-    rating: 5.0, reviews_count: 0,
-    price_from: Math.min(...services.map(s => s.price)),
-    established: new Date().getFullYear(), is_open: true, verified: false,
-    phone: val('fPhone'), instagram: val('fInsta').replace('@', ''),
-    address: {
-      street: val('fStreet'), district: val('fDistrict'),
-      city: val('fCity') || 'Timbó', state: (val('fState') || 'SC').toUpperCase(),
-      lat: -26.823 + (Math.random() - 0.5) * 0.02,
-      lng: -49.271 + (Math.random() - 0.5) * 0.02,
-      distance_km: +(Math.random() * 3 + 0.2).toFixed(1)
-    },
-    hours: collectHours(),
-    amenities: collectAmenities(),
-    about: val('fAbout') || val('fTagline') || 'Barbearia recém-cadastrada na BarberKut.',
+  const shopData = {
+    id, slug, name,
+    tagline:       val('fTagline') || 'Nova barbearia na BarberKut.',
+    cover:         covers[Math.floor(Math.random() * covers.length)],
+    icon:          val('fIcon') || '✂',
+    rating:        5.0,
+    reviews_count: 0,
+    price_from:    Math.min(...services.map(s => s.price)),
+    established:   new Date().getFullYear(),
+    is_open:       true,
+    verified:      false,
+    phone:         val('fPhone'),
+    instagram:     val('fInsta').replace('@', ''),
+    about:         val('fAbout') || val('fTagline') || 'Barbearia recém-cadastrada na BarberKut.',
+    street:        val('fStreet'),
+    district:      val('fDistrict'),
+    city:          val('fCity') || 'Timbó',
+    state:         (val('fState') || 'SC').toUpperCase(),
+    lat:           -26.823 + (Math.random() - 0.5) * 0.02,
+    lng:           -49.271 + (Math.random() - 0.5) * 0.02,
+    distance_km:   +(Math.random() * 3 + 0.2).toFixed(1),
     rating_breakdown: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
-    gallery: [],
-    services,
-    barbers: [{ name: 'Responsável', role: 'Proprietário', initials: bkInitials(name), rating: 5.0, specialty: 'Atendimento geral' }],
-    reviews: []
+    owner_id:      user?.id || null
   };
 
-  const mine = JSON.parse(localStorage.getItem('bk-my-shops') || '[]');
-  mine.push(shop);
-  localStorage.setItem('bk-my-shops', JSON.stringify(mine));
+  if (window.supabase) {
+    const { error } = await window.supabase.from('shops').insert(shopData);
+    if (error) { toast('Erro ao salvar: ' + error.message, 'error'); return; }
 
-  // Tela de sucesso
+    // Horários
+    const hoursRows = Object.entries(hours).map(([weekday, val]) => ({
+      shop_id: id, weekday,
+      open_time:  val ? val[0] : null,
+      close_time: val ? val[1] : null
+    }));
+    await window.supabase.from('shop_hours').insert(hoursRows);
+
+    // Comodidades
+    if (amens.length) {
+      await window.supabase.from('shop_amenities').insert(amens.map(a => ({ shop_id: id, amenity: a })));
+    }
+
+    // Serviços
+    await window.supabase.from('services').insert(
+      services.map((s, i) => ({ shop_id: id, name: s.name, price: s.price, duration_min: s.duration, sort_order: i + 1 }))
+    );
+
+    // Barbeiro padrão
+    await window.supabase.from('barbers').insert({
+      shop_id: id, name: 'Responsável', role: 'Proprietário',
+      initials: bkInitials(name), rating: 5.0, specialty: 'Atendimento geral'
+    });
+  } else {
+    // Fallback localStorage
+    const shop = {
+      ...shopData,
+      address: { street: shopData.street, district: shopData.district, city: shopData.city,
+        state: shopData.state, lat: shopData.lat, lng: shopData.lng, distance_km: shopData.distance_km },
+      hours, amenities: amens, gallery: [], services,
+      barbers: [{ name: 'Responsável', role: 'Proprietário', initials: bkInitials(name), rating: 5.0, specialty: 'Atendimento geral' }],
+      reviews: []
+    };
+    const mine = JSON.parse(localStorage.getItem('bk-my-shops') || '[]');
+    mine.push(shop);
+    localStorage.setItem('bk-my-shops', JSON.stringify(mine));
+  }
+
   document.getElementById('successName').textContent = name;
   document.getElementById('successView').href = 'barbearia.html?id=' + id;
   document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
