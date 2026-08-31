@@ -78,10 +78,97 @@ function updateSidebarBtn() {
   if (btn) btn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
 }
 
+/* ── Agenda real do Supabase ───────────────────────────────── */
+async function loadShopFilter() {
+  const sel = document.getElementById('shopFilter');
+  if (!sel || !window.supabase) {
+    if (sel) sel.innerHTML = '<option value="">Todas as barbearias</option>';
+    loadAgenda();
+    return;
+  }
+  const { data: shops } = await window.supabase.from('shops').select('id, name').order('name');
+  if (!shops || !shops.length) {
+    sel.innerHTML = '<option value="">Nenhuma barbearia cadastrada</option>';
+    loadAgenda();
+    return;
+  }
+  sel.innerHTML = '<option value="">Todas as barbearias</option>' +
+    shops.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  loadAgenda();
+}
+
+async function loadAgenda() {
+  const el  = document.getElementById('agendaList');
+  const sel = document.getElementById('shopFilter');
+  if (!el) return;
+
+  el.innerHTML = '<div class="empty-state"><div class="empty-state__icon">⏳</div><p>Carregando...</p></div>';
+
+  if (!window.supabase) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-state__icon">⚠️</div><p>Supabase não conectado.</p></div>';
+    return;
+  }
+
+  let query = window.supabase
+    .from('appointments')
+    .select('*, profiles(name)')
+    .eq('status', 'confirmed')
+    .order('appointment_date', { ascending: false })
+    .order('appointment_time', { ascending: true });
+
+  const shopId = sel ? sel.value : '';
+  if (shopId) query = query.eq('shop_id', shopId);
+
+  const { data: appts } = await query.limit(50);
+  const list = appts || [];
+
+  // Stats
+  const hoje = new Date().toLocaleDateString('pt-BR', { weekday:'short', day:'numeric', month:'short' });
+  const hojeAppts = list.filter(a => a.appointment_date === hoje);
+  const fatHoje   = hojeAppts.reduce((s, a) => s + (a.price || 0), 0);
+  set('statHoje',  hojeAppts.length);
+  set('statFat',   'R$ ' + fatHoje.toFixed(0));
+  set('statTotal', list.length);
+
+  const shopName = sel && sel.value ? (sel.options[sel.selectedIndex]?.text || '') : 'Todas as barbearias';
+  set('agendaTitle', 'Agenda — ' + shopName);
+
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-state__icon">📅</div><p>Nenhum agendamento encontrado.</p></div>';
+    return;
+  }
+
+  el.innerHTML = list.map(a => {
+    const cliente = a.profiles?.name || 'Cliente';
+    const status  = a.status === 'confirmed' ? '⏳ Aguardando' : a.status === 'completed' ? '✓ Concluído' : '✕ Cancelado';
+    const cls     = a.status === 'completed' ? ' schedule-event--green' : a.status === 'cancelled' ? ' schedule-event--red' : '';
+    return `<div class="sched-row">
+      <div class="sched-time">${a.appointment_time || '—'}</div>
+      <div class="schedule-event${cls}">
+        <div class="schedule-event__client">${cliente} <span style="opacity:.8;font-size:var(--text-xs)">${status}</span></div>
+        <div class="schedule-event__service">${a.service} · ${a.shop_name} · R$ ${a.price || 0}</div>
+        <div style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:4px">${a.appointment_date || ''}</div>
+        ${a.status === 'confirmed' ? `<div style="margin-top:var(--space-2);display:flex;gap:var(--space-2)">
+          <button class="btn btn--sm" style="background:var(--color-green);color:#fff;padding:4px 10px;font-size:11px" onclick="updateAppt(${a.id},'completed')">✓ Concluir</button>
+          <button class="btn btn--sm btn--ghost" style="font-size:11px" onclick="updateAppt(${a.id},'cancelled')">✕ Cancelar</button>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function updateAppt(id, status) {
+  if (!window.supabase) return;
+  await window.supabase.from('appointments').update({ status }).eq('id', id);
+  toast(status === 'completed' ? 'Agendamento concluído ✓' : 'Agendamento cancelado', status === 'completed' ? 'success' : 'info');
+  loadAgenda();
+}
+
 /* ── Inicialização ─────────────────────────────────────────── */
 window.addEventListener('resize', updateSidebarBtn);
 document.addEventListener('DOMContentLoaded', () => {
   updateSidebarBtn();
   updateDate();
+  loadShopFilter();
 });
 

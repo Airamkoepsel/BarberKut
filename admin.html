@@ -119,84 +119,25 @@
     <!-- ── AGENDA ── -->
     <section id="sec-agenda" class="admin-section active">
       <div class="financial-stats" style="margin-bottom:var(--space-6)">
-        <div class="stat-card"><div class="stat-card__label">Agendamentos hoje</div><div class="stat-card__value">8</div><span class="stat-card__delta stat-card__delta--up">↑ +2 vs ontem</span></div>
-        <div class="stat-card"><div class="stat-card__label">Faturamento previsto</div><div class="stat-card__value">R$320</div><span class="stat-card__delta stat-card__delta--up">↑ +R$65</span></div>
-        <div class="stat-card"><div class="stat-card__label">Próximo cliente</div><div class="stat-card__value" style="font-size:var(--text-xl)">10:30</div><span class="stat-card__delta stat-card__delta--up">em 25 min</span></div>
+        <div class="stat-card"><div class="stat-card__label">Agendamentos hoje</div><div class="stat-card__value" id="statHoje">—</div></div>
+        <div class="stat-card"><div class="stat-card__label">Faturamento previsto</div><div class="stat-card__value" id="statFat">—</div></div>
+        <div class="stat-card"><div class="stat-card__label">Total de agendamentos</div><div class="stat-card__value" id="statTotal">—</div></div>
       </div>
+
+      <!-- Seletor de barbearia (para donos com múltiplas) -->
+      <div style="margin-bottom:var(--space-4)">
+        <select class="form-control" id="shopFilter" onchange="loadAgenda()" style="max-width:320px">
+          <option value="">Carregando barbearias...</option>
+        </select>
+      </div>
+
       <div class="schedule-day">
         <div style="padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--color-border);display:flex;justify-content:space-between;align-items:center">
-          <h5 style="color:var(--color-navy);margin:0">Agenda de hoje — Terça, 10 Jun</h5>
-          <button class="btn btn--ghost btn--sm" onclick="toast('Em breve: novo horário manual!','info')">+ Novo horário</button>
+          <h5 style="color:var(--color-navy);margin:0" id="agendaTitle">Agenda de hoje</h5>
         </div>
-        <div style="padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3)">
-
-          <div class="sched-row">
-            <div class="sched-time">08:00</div>
-            <div class="schedule-event schedule-event--green">
-              <div class="schedule-event__client">Lucas Ferreira <span style="opacity:.8">✓ Concluído</span></div>
-              <div class="schedule-event__service">Degradê · R$ 35</div>
-              <div class="schedule-event__ai-thumb" style="font-size:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15)">🤳</div>
-            </div>
-          </div>
-
-          <div class="sched-row">
-            <div class="sched-time">09:00</div>
-            <div class="schedule-event schedule-event--green">
-              <div class="schedule-event__client">Pedro Alves <span style="opacity:.8">✓ Concluído</span></div>
-              <div class="schedule-event__service">Barba · R$ 20</div>
-            </div>
-          </div>
-
-          <div class="sched-row">
-            <div class="sched-time" style="color:var(--color-red);font-weight:700">09:30</div>
-            <div class="schedule-event schedule-event--red">
-              <div class="schedule-event__client">Carlos Mendes <span style="opacity:.85">⏱ Agora</span></div>
-              <div class="schedule-event__service">Degradê + Barba · R$ 50</div>
-              <div class="schedule-event__ai-thumb" style="font-size:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15)">🤳</div>
-            </div>
-          </div>
-
-          <div class="sched-row">
-            <div class="sched-time">10:30</div>
-            <div class="schedule-event">
-              <div class="schedule-event__client">Marcos Lima</div>
-              <div class="schedule-event__service">Corte Social · R$ 25</div>
-            </div>
-          </div>
-
-          <div class="sched-row">
-            <div class="sched-time">11:00</div>
-            <div class="schedule-event">
-              <div class="schedule-event__client">João Paulo</div>
-              <div class="schedule-event__service">Degradê · R$ 35</div>
-              <div class="schedule-event__ai-thumb" style="font-size:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15)" title="Foto IA disponível">🤳</div>
-            </div>
-          </div>
-
-          <div class="sched-row">
-            <div class="sched-time">13:00</div>
-            <div class="schedule-event">
-              <div class="schedule-event__client">Felipe Santos</div>
-              <div class="schedule-event__service">Pezinho · R$ 15</div>
-            </div>
-          </div>
-
-          <div class="sched-row">
-            <div class="sched-time">14:00</div>
-            <div class="schedule-event">
-              <div class="schedule-event__client">André Costa</div>
-              <div class="schedule-event__service">Degradê + Barba · R$ 50</div>
-              <div class="schedule-event__ai-thumb" style="font-size:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15)">🤳</div>
-            </div>
-          </div>
-
-          <div class="sched-row">
-            <div class="sched-time">16:00</div>
-            <div class="schedule-event">
-              <div class="schedule-event__client">Rodrigo Lima</div>
-              <div class="schedule-event__service">Corte Infantil · R$ 25</div>
-            </div>
-          </div>
+        <div style="padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-3)" id="agendaList">
+          <div class="empty-state"><div class="empty-state__icon">📅</div><p>Carregando agendamentos...</p></div>
+        </div>
 
         </div>
       </div>
