@@ -181,9 +181,13 @@ function pickDay(el, dia) {
    STEP 3 — Pagamento
    ════════════════════════════════════════════════════════════ */
 
+let _payMethod = null;
+
 function toggleCard(forma) {
+  _payMethod = forma;
   document.getElementById('cardFields').style.display = (forma === 'pix' || forma === 'dinheiro') ? 'none' : 'block';
   document.getElementById('pixBlock').style.display   =  forma === 'pix' ? 'block' : 'none';
+  document.getElementById('btnConfirm').disabled = false;
 }
 
 function fmtCard(input) {
@@ -192,6 +196,19 @@ function fmtCard(input) {
 }
 
 async function confirmBooking() {
+  if (!_payMethod) {
+    toast('Selecione uma forma de pagamento para continuar.', 'error');
+    return;
+  }
+  if (_payMethod === 'credito' || _payMethod === 'debito') {
+    const num = document.getElementById('cardNum')?.value.replace(/\s/g, '') || '';
+    const exp = document.getElementById('cardExp')?.value || '';
+    const cvv = document.getElementById('cardCvv')?.value || '';
+    if (num.length < 16 || !exp || cvv.length < 3) {
+      toast('Preencha os dados do cartão corretamente.', 'error');
+      return;
+    }
+  }
   const user = (typeof bkUser === 'function') ? bkUser() : null;
   const appt = {
     shop_id:          SHOP_CTX ? SHOP_CTX.id   : 'central',

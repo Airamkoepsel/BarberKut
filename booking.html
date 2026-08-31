@@ -656,12 +656,12 @@
               </div>
               <div id="cardFields">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
-                  <div class="form-group"><label class="form-label form-label--required">Número</label><input class="form-control" type="text" placeholder="0000 0000 0000 0000" maxlength="19" oninput="fmtCard(this)"/></div>
+                  <div class="form-group"><label class="form-label form-label--required">Número</label><input class="form-control" id="cardNum" type="text" placeholder="0000 0000 0000 0000" maxlength="19" oninput="fmtCard(this)"/></div>
                   <div class="form-group"><label class="form-label form-label--required">Nome</label><input class="form-control" type="text" placeholder="JOÃO DA SILVA"/></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
-                  <div class="form-group"><label class="form-label form-label--required">Validade</label><input class="form-control" type="text" placeholder="MM/AA" maxlength="5"/></div>
-                  <div class="form-group"><label class="form-label form-label--required">CVV</label><input class="form-control" type="text" placeholder="000" maxlength="4"/></div>
+                  <div class="form-group"><label class="form-label form-label--required">Validade</label><input class="form-control" id="cardExp" type="text" placeholder="MM/AA" maxlength="5"/></div>
+                  <div class="form-group"><label class="form-label form-label--required">CVV</label><input class="form-control" id="cardCvv" type="text" placeholder="000" maxlength="4"/></div>
                 </div>
               </div>
               <div id="pixBlock" style="display:none;background:var(--color-surface-2);border-radius:var(--radius-lg);padding:var(--space-5);text-align:center">
@@ -676,7 +676,7 @@
             </div>
             <div style="margin-top:var(--space-6);display:flex;justify-content:space-between">
               <button class="btn btn--ghost" onclick="goStep(2)">← Voltar</button>
-              <button class="btn btn--primary btn--lg" onclick="confirmBooking()">Confirmar agendamento</button>
+              <button class="btn btn--primary btn--lg" id="btnConfirm" onclick="confirmBooking()" disabled>Confirmar agendamento</button>
             </div>
           </div>
 
