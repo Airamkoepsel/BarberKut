@@ -312,38 +312,101 @@ async function imageToBase64(url, maxPx = 512) {
   return resizeDataUrl(raw, maxPx);
 }
 
-/* Chama o HairFastGAN — tenta fn_index 0 e 1, formato base64 puro */
+/* Chama o HairFastGAN via Gradio 4.x (upload + SSE) */
 async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
   const SPACE = 'https://airi-institute-hairfastgan.hf.space';
 
-  for (const fn_index of [0, 1, 2]) {
-    try {
-      const resp = await fetch(`${SPACE}/run/predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fn_index,
-          data: [faceDataUrl, hairRefDataUrl, hairRefDataUrl, 'Article', 0, 15]
-        }),
-        signal: AbortSignal.timeout(150000)
-      });
-
-      if (resp.status === 503) throw new Error('sleeping');
-      if (!resp.ok) continue;  // tenta próximo fn_index
-
-      const json = await resp.json();
-      const out  = json.data?.[0];
-      if (!out) continue;
-
-      const result = typeof out === 'string' ? out : (out.data ?? out.url ?? null);
-      if (result) return result;
-    } catch (e) {
-      if (e.message === 'sleeping')
-        throw new Error('A IA está iniciando. Aguarde 1-2 minutos e tente novamente.');
-      if (fn_index === 2) throw e;
+  /* 1. descobre o nome do endpoint via /info */
+  let apiName = '/predict';
+  try {
+    const infoResp = await fetch(`${SPACE}/info`, { signal: AbortSignal.timeout(12000) });
+    if (infoResp.ok) {
+      const info = await infoResp.json();
+      const endpoints = Object.keys(info.named_endpoints || {});
+      if (endpoints.length) apiName = endpoints[0];
     }
+  } catch { /* usa /predict como fallback */ }
+
+  /* 2. faz upload das imagens (Gradio 4.x exige /upload antes do predict) */
+  const toBlob = async dataUrl => (await fetch(dataUrl)).blob();
+  const [faceBlob, hairBlob] = await Promise.all([
+    toBlob(faceDataUrl), toBlob(hairRefDataUrl)
+  ]);
+
+  const upload = async (blob, name) => {
+    const form = new FormData();
+    form.append('files', blob, name);
+    const r = await fetch(`${SPACE}/upload`, {
+      method: 'POST', body: form, signal: AbortSignal.timeout(30000)
+    });
+    if (!r.ok) return null;
+    const paths = await r.json();
+    return paths?.[0] ?? null;
+  };
+
+  const [facePath, hairPath] = await Promise.all([
+    upload(faceBlob, 'face.jpg'),
+    upload(hairBlob, 'hair.jpg')
+  ]);
+
+  if (!facePath || !hairPath)
+    throw new Error('Falha ao enviar imagens para a IA. Tente novamente.');
+
+  /* 3. submete o job → recebe event_id */
+  const submitResp = await fetch(`${SPACE}/call${apiName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data: [
+        { path: facePath }, { path: hairPath }, { path: hairPath },
+        'Article', 0, 15
+      ]
+    }),
+    signal: AbortSignal.timeout(30000)
+  });
+
+  if (submitResp.status === 503)
+    throw new Error('A IA está iniciando. Aguarde 1-2 minutos e tente novamente.');
+  if (!submitResp.ok)
+    throw new Error(`Erro ${submitResp.status} ao iniciar a IA.`);
+
+  const { event_id } = await submitResp.json();
+  if (!event_id) throw new Error('IA não respondeu com ID de processamento.');
+
+  /* 4. lê o SSE stream até receber o resultado */
+  const streamResp = await fetch(`${SPACE}/call${apiName}/${event_id}`, {
+    signal: AbortSignal.timeout(180000) // 3 min para gerar
+  });
+
+  const reader  = streamResp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    for (const line of buffer.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const parsed = JSON.parse(line.slice(6));
+        const arr = Array.isArray(parsed) ? parsed
+                  : (parsed.output?.data ?? null);
+        if (!arr) continue;
+        const out = arr[0];
+        const url = out?.url || out?.path || (typeof out === 'string' ? out : null);
+        if (url) {
+          reader.cancel();
+          return url.startsWith('http') ? url : `${SPACE}/file=${url}`;
+        }
+      } catch { /* linha ainda incompleta */ }
+    }
+    // guarda só a última linha incompleta
+    buffer = buffer.includes('\n') ? buffer.slice(buffer.lastIndexOf('\n') + 1) : buffer;
   }
-  throw new Error('IA temporariamente indisponível. Tente novamente em instantes.');
+
+  throw new Error('A IA finalizou sem retornar imagem. Tente novamente.');
 }
 
 /* Salva resultado no Supabase Storage (bucket: simulations) */
