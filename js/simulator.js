@@ -418,17 +418,58 @@ async function _gradioCall(space, faceDataUrl, extraData) {
   }
 }
 
-/* Edita a foto com InstructPix2Pix guiado pelo nome/descrição do corte */
+/* ── Token da HuggingFace Inference API (conta gratuita em huggingface.co) ── */
+const HF_TOKEN = 'hf_COLOQUE_SEU_TOKEN_AQUI';
+
+/* Edita a foto via HuggingFace Inference API (InstructPix2Pix) */
 async function callHairFastGAN(faceDataUrl, cut) {
+  if (!HF_TOKEN || HF_TOKEN.includes('COLOQUE')) {
+    throw new Error('Configure o token HuggingFace no simulator.js (HF_TOKEN).');
+  }
+
   const instruction = buildHairInstruction(cut);
   console.log('[BK-SIM] instrução:', instruction);
 
-  // InstructPix2Pix: [imagem, instrução, steps, text_cfg, image_cfg]
-  return _gradioCall(
-    'https://timbrooks-instruct-pix2pix.hf.space',
-    faceDataUrl,
-    [instruction, 50, 7.5, 1.5]
+  const resp = await fetch(
+    'https://api-inference.huggingface.co/models/timbrooks/instruct-pix2pix',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HF_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: faceDataUrl,   // data URL com base64
+        parameters: {
+          prompt: instruction,
+          negative_prompt: 'blurry, bad quality, distorted face, changed identity',
+          num_inference_steps: 30,
+          image_guidance_scale: 1.5,
+          guidance_scale: 7.5
+        }
+      }),
+      signal: AbortSignal.timeout(120000)
+    }
   );
+
+  if (resp.status === 503) {
+    const json = await resp.json().catch(() => ({}));
+    const wait = Math.ceil(json.estimated_time || 30);
+    throw new Error(`A IA está carregando (~${wait}s). Aguarde e tente novamente.`);
+  }
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    throw new Error(`Erro ${resp.status} na IA. Tente novamente.`);
+  }
+
+  // A API retorna a imagem diretamente (binário)
+  const resultBlob = await resp.blob();
+  return new Promise(res => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.readAsDataURL(resultBlob);
+  });
 }
 
 /* Salva resultado no Supabase Storage (bucket: simulations) */
