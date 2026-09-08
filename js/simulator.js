@@ -323,9 +323,12 @@ async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
     if (infoResp.ok) {
       const info = await infoResp.json();
       const endpoints = Object.keys(info.named_endpoints || {});
+      console.log('[BK-SIM] endpoints disponíveis:', endpoints);
       if (endpoints.length) apiName = endpoints[0];
     }
-  } catch { /* usa /predict como fallback */ }
+  } catch (e) { console.warn('[BK-SIM] /info falhou:', e.message); }
+
+  console.log('[BK-SIM] usando endpoint:', apiName);
 
   /* 2. faz upload das imagens (Gradio 4.x exige /upload antes do predict) */
   const toBlob = async dataUrl => (await fetch(dataUrl)).blob();
@@ -339,8 +342,10 @@ async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
     const r = await fetch(`${SPACE}/upload`, {
       method: 'POST', body: form, signal: AbortSignal.timeout(30000)
     });
+    console.log('[BK-SIM] upload', name, '→ status', r.status);
     if (!r.ok) return null;
     const paths = await r.json();
+    console.log('[BK-SIM] upload', name, '→ path', paths?.[0]);
     return paths?.[0] ?? null;
   };
 
@@ -353,27 +358,37 @@ async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
     throw new Error('Falha ao enviar imagens para a IA. Tente novamente.');
 
   /* 3. submete o job → recebe event_id */
+  const submitBody = {
+    data: [
+      { path: facePath }, { path: hairPath }, { path: hairPath },
+      'Article', 0, 15
+    ]
+  };
+  console.log('[BK-SIM] submetendo job para', `${SPACE}/call${apiName}`);
+
   const submitResp = await fetch(`${SPACE}/call${apiName}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      data: [
-        { path: facePath }, { path: hairPath }, { path: hairPath },
-        'Article', 0, 15
-      ]
-    }),
+    body: JSON.stringify(submitBody),
     signal: AbortSignal.timeout(30000)
   });
 
+  console.log('[BK-SIM] submit status:', submitResp.status);
   if (submitResp.status === 503)
     throw new Error('A IA está iniciando. Aguarde 1-2 minutos e tente novamente.');
-  if (!submitResp.ok)
+  if (!submitResp.ok) {
+    const errTxt = await submitResp.text().catch(() => '');
+    console.error('[BK-SIM] submit error body:', errTxt);
     throw new Error(`Erro ${submitResp.status} ao iniciar a IA.`);
+  }
 
-  const { event_id } = await submitResp.json();
+  const submitJson = await submitResp.json();
+  const { event_id } = submitJson;
+  console.log('[BK-SIM] event_id:', event_id);
   if (!event_id) throw new Error('IA não respondeu com ID de processamento.');
 
   /* 4. lê o SSE stream até receber o resultado */
+  console.log('[BK-SIM] aguardando SSE...');
   const streamResp = await fetch(`${SPACE}/call${apiName}/${event_id}`, {
     signal: AbortSignal.timeout(180000) // 3 min para gerar
   });
@@ -389,20 +404,23 @@ async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
 
     for (const line of buffer.split('\n')) {
       if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === 'null' || !raw) continue;
       try {
-        const parsed = JSON.parse(line.slice(6));
+        const parsed = JSON.parse(raw);
+        console.log('[BK-SIM] SSE data:', JSON.stringify(parsed).slice(0, 120));
         const arr = Array.isArray(parsed) ? parsed
                   : (parsed.output?.data ?? null);
         if (!arr) continue;
         const out = arr[0];
         const url = out?.url || out?.path || (typeof out === 'string' ? out : null);
         if (url) {
+          console.log('[BK-SIM] imagem recebida:', url);
           reader.cancel();
           return url.startsWith('http') ? url : `${SPACE}/file=${url}`;
         }
-      } catch { /* linha ainda incompleta */ }
+      } catch { /* linha incompleta, aguarda próximo chunk */ }
     }
-    // guarda só a última linha incompleta
     buffer = buffer.includes('\n') ? buffer.slice(buffer.lastIndexOf('\n') + 1) : buffer;
   }
 
@@ -587,9 +605,29 @@ async function simulate() {
     const faceImg  = await resizeDataUrl(SIM.photoData, 512);
     const result   = await callHairFastGAN(faceImg, hairRef);
 
+    console.log('[BK-SIM] resultado da IA:', result);
+
+    // Se a IA retornou URL externa, baixa e converte para blob local
+    // (evita qualquer problema de CORS ou URL expirada)
+    let localImage = result;
+    if (result && result.startsWith('http')) {
+      try {
+        progress('Baixando imagem gerada...');
+        const r = await fetch(result, { signal: AbortSignal.timeout(30000) });
+        const blob = await r.blob();
+        localImage = await new Promise(res => {
+          const fr = new FileReader();
+          fr.onload = () => res(fr.result);
+          fr.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.warn('[BK-SIM] falha ao baixar imagem da IA, usando URL direta:', e.message);
+      }
+    }
+
     SIM.left--;
     SIM.activeCut      = SIM.selected[0];
-    SIM.generatedImage = result;
+    SIM.generatedImage = localImage;
 
     const plural = SIM.left !== 1 ? 's' : '';
     set('quota', `🤖 ${SIM.left} teste${plural} gratuito${plural} restante${plural} este mês`);
@@ -630,7 +668,14 @@ function renderResult() {
 
   // antes / depois
   document.getElementById('beforeImg').src  = SIM.photoData;
-  document.getElementById('afterPhoto').src  = SIM.generatedImage || SIM.photoData;
+  const afterImg = document.getElementById('afterPhoto');
+  afterImg.onerror = () => {
+    console.warn('[BK-SIM] imagem "depois" falhou ao carregar, usando foto original');
+    afterImg.onerror = null;
+    afterImg.src = SIM.photoData;
+  };
+  afterImg.src = SIM.generatedImage || SIM.photoData;
+  console.log('[BK-SIM] exibindo afterPhoto src:', afterImg.src?.slice(0, 80));
   document.getElementById('afterBadge').innerHTML = cutArt(cut);
 
   // card do corte
