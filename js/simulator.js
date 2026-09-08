@@ -467,8 +467,17 @@ function onPhoto(input) {
   const reader = new FileReader();
   reader.onload = (e) => {
     SIM.photoData = e.target.result;
+    // Mostra preview da foto no dropzone
+    const dz = document.querySelector('.dropzone');
+    dz.style.backgroundImage    = `url(${e.target.result})`;
+    dz.style.backgroundSize     = 'cover';
+    dz.style.backgroundPosition = 'center';
     document.getElementById('dzIcon').textContent  = '✅';
     document.getElementById('dzTitle').textContent = 'Foto carregada!';
+    document.getElementById('dzTitle').style.background = 'rgba(0,0,0,.45)';
+    document.getElementById('dzTitle').style.borderRadius = '6px';
+    document.getElementById('dzTitle').style.padding = '2px 8px';
+    document.getElementById('dzTitle').style.color = '#fff';
     checkBtn();
   };
   reader.readAsDataURL(input.files[0]);
