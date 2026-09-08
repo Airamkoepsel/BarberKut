@@ -438,6 +438,7 @@ async function callHairFastGAN(faceDataUrl, cut) {
 
   if (!resp.ok) {
     const json = await resp.json().catch(() => ({}));
+    console.error('[BK-SIM] resposta da /api/simulate:', json);
     throw new Error(`Erro ${resp.status} na IA. ${json.error || ''}`);
   }
 
