@@ -358,47 +358,64 @@ async function _readGradioSSE(streamResp, space) {
   throw new Error('A IA finalizou sem retornar imagem. Tente novamente.');
 }
 
-/* Fluxo Gradio 4.x: /info → /upload → /call → SSE */
-async function _gradio4Call(space, faceDataUrl, data) {
-  // 1. descobre endpoint
-  let apiName = '/predict';
+/* Chama um Space Gradio detectando a versão automaticamente:
+   - Gradio 4.x → /upload + /call/{name} + SSE
+   - Gradio 3.x → /run/predict com base64 direto */
+async function _gradioCall(space, faceDataUrl, extraData) {
+  // Tenta descobrir versão e endpoint via /info (só existe no Gradio 4.x)
+  let apiName = null;
   try {
-    const r = await fetch(`${space}/info`, { signal: AbortSignal.timeout(12000) });
+    const r = await fetch(`${space}/info`, { signal: AbortSignal.timeout(10000) });
     if (r.ok) {
       const names = Object.keys((await r.json()).named_endpoints || {});
-      if (names.length) apiName = names[0];
+      apiName = names[0] || '/predict'; // Gradio 4.x confirmado
     }
   } catch {}
-  console.log('[BK-SIM] endpoint:', space + apiName);
 
-  // 2. upload da foto do usuário
-  const faceBlob = await (await fetch(faceDataUrl)).blob();
-  const form = new FormData();
-  form.append('files', faceBlob, 'face.jpg');
-  const upResp = await fetch(`${space}/upload`, { method:'POST', body:form, signal:AbortSignal.timeout(30000) });
-  if (!upResp.ok) throw new Error(`Upload falhou (${upResp.status}). Tente novamente.`);
-  const [facePath] = await upResp.json();
-  console.log('[BK-SIM] facePath:', facePath);
+  if (apiName) {
+    /* ── Gradio 4.x ── */
+    console.log('[BK-SIM] Gradio 4.x, endpoint:', apiName);
+    const faceBlob = await (await fetch(faceDataUrl)).blob();
+    const form = new FormData();
+    form.append('files', faceBlob, 'face.jpg');
+    const upResp = await fetch(`${space}/upload`, { method:'POST', body:form, signal:AbortSignal.timeout(30000) });
+    if (!upResp.ok) throw new Error(`Upload falhou (${upResp.status}). Tente novamente.`);
+    const [facePath] = await upResp.json();
 
-  // 3. submete job (primeiro item dos dados é a imagem)
-  const payload = { data: [{ path: facePath }, ...data] };
-  const subResp = await fetch(`${space}/call${apiName}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(30000)
-  });
-  if (subResp.status === 503) throw new Error('A IA está iniciando. Aguarde 1-2 min e tente novamente.');
-  if (!subResp.ok) throw new Error(`Erro ${subResp.status} ao iniciar a IA.`);
-  const { event_id } = await subResp.json();
-  if (!event_id) throw new Error('IA não retornou ID de processamento.');
-  console.log('[BK-SIM] event_id:', event_id);
+    const subResp = await fetch(`${space}/call${apiName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [{ path: facePath }, ...extraData] }),
+      signal: AbortSignal.timeout(30000)
+    });
+    if (subResp.status === 503) throw new Error('A IA está iniciando. Aguarde 1-2 min e tente novamente.');
+    if (!subResp.ok) throw new Error(`Erro ${subResp.status} ao iniciar a IA.`);
+    const { event_id } = await subResp.json();
+    if (!event_id) throw new Error('IA não retornou ID de processamento.');
+    console.log('[BK-SIM] event_id:', event_id);
+    const streamResp = await fetch(`${space}/call${apiName}/${event_id}`, { signal: AbortSignal.timeout(180000) });
+    return _readGradioSSE(streamResp, space);
 
-  // 4. lê resultado via SSE
-  const streamResp = await fetch(`${space}/call${apiName}/${event_id}`, {
-    signal: AbortSignal.timeout(180000)
-  });
-  return _readGradioSSE(streamResp, space);
+  } else {
+    /* ── Gradio 3.x — base64 direto no /run/predict ── */
+    console.log('[BK-SIM] Gradio 3.x, usando /run/predict com base64');
+    for (const fn_index of [0, 1]) {
+      const resp = await fetch(`${space}/run/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fn_index, data: [faceDataUrl, ...extraData] }),
+        signal: AbortSignal.timeout(180000)
+      });
+      if (resp.status === 503) throw new Error('A IA está iniciando. Aguarde 1-2 min e tente novamente.');
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      const out  = json.data?.[0];
+      if (!out) continue;
+      const url = typeof out === 'string' ? out : (out.data ?? out.url ?? null);
+      if (url) { console.log('[BK-SIM] resultado:', url?.slice(0, 80)); return url; }
+    }
+    throw new Error('A IA não retornou imagem. Tente novamente.');
+  }
 }
 
 /* Edita a foto com InstructPix2Pix guiado pelo nome/descrição do corte */
@@ -407,7 +424,7 @@ async function callHairFastGAN(faceDataUrl, cut) {
   console.log('[BK-SIM] instrução:', instruction);
 
   // InstructPix2Pix: [imagem, instrução, steps, text_cfg, image_cfg]
-  return _gradio4Call(
+  return _gradioCall(
     'https://timbrooks-instruct-pix2pix.hf.space',
     faceDataUrl,
     [instruction, 50, 7.5, 1.5]
