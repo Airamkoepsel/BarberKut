@@ -14,10 +14,66 @@ const WEEKDAY_LABELS = {
 
 let SHOP = null;   // barbearia atual
 
+/* ── Carrega barbearia do Supabase (para shops cadastrados via formulário) ── */
+async function loadShopFromSupabase(id) {
+  if (!window.supabase) return null;
+  try {
+    const [{ data: shop }, { data: svcs }, { data: barbers }, { data: hrs }, { data: amen }] =
+      await Promise.all([
+        window.supabase.from('shops').select('*').eq('id', id).single(),
+        window.supabase.from('services').select('*').eq('shop_id', id),
+        window.supabase.from('barbers').select('*').eq('shop_id', id),
+        window.supabase.from('shop_hours').select('*').eq('shop_id', id),
+        window.supabase.from('shop_amenities').select('*').eq('shop_id', id),
+      ]);
+    if (!shop) return null;
+
+    const hoursMap = {};
+    (hrs || []).forEach(h => {
+      hoursMap[h.weekday] = h.is_open ? [h.open_time.slice(0,5), h.close_time.slice(0,5)] : null;
+    });
+
+    return {
+      id: shop.id, name: shop.name, tagline: shop.tagline || '',
+      cover: shop.cover || 'bc-g1', icon: shop.icon || '✂',
+      rating: shop.rating || 5.0, reviews_count: shop.reviews_count || 0,
+      price_from: shop.price_from || 0, established: shop.established || new Date().getFullYear(),
+      is_open: shop.is_open, verified: shop.verified || false,
+      phone: shop.phone || '', instagram: shop.instagram || '',
+      about: shop.about || 'Barbearia cadastrada na BarberKut.',
+      rating_breakdown: { 5:0, 4:0, 3:0, 2:0, 1:0 },
+      gallery: [], reviews: [],
+      address: {
+        street: (shop.address || {}).street || '',
+        district: (shop.address || {}).district || '',
+        city: (shop.address || {}).city || 'Timbó',
+        state: (shop.address || {}).state || 'SC',
+        lat: (shop.address || {}).lat || -26.8230,
+        lng: (shop.address || {}).lng || -49.2710,
+        distance_km: (shop.address || {}).distance_km || '—'
+      },
+      hours: hoursMap,
+      amenities: (amen || []).map(a => a.amenity),
+      services: (svcs || []).map(sv => ({
+        name: sv.name, desc: sv.description || '', price: sv.price,
+        duration: sv.duration, popular: sv.is_popular || false
+      })),
+      barbers: (barbers || []).map(b => ({
+        name: b.name,
+        initials: b.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase(),
+        role: b.role || 'Barbeiro', specialty: b.specialty || '', rating: b.rating || 4.5
+      }))
+    };
+  } catch { return null; }
+}
+
 /* ── Inicialização ─────────────────────────────────────────── */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const id = new URLSearchParams(location.search).get('id');
   SHOP = (window.getShopById && getShopById(id)) || null;
+
+  // Se não achou no data.js, tenta no Supabase (barbearias cadastradas pelo formulário)
+  if (!SHOP) SHOP = await loadShopFromSupabase(id);
 
   if (!SHOP) {
     document.getElementById('shopNotFound').style.display = 'block';
