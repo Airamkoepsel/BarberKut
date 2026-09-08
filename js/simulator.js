@@ -210,11 +210,86 @@ function cutSVG(cut) {
    3. ESTADO
    ════════════════════════════════════════════════════════════ */
 const SIM = {
-  selected: [],      // id do corte escolhido (seleção única)
-  activeCut: null,   // corte exibido no resultado
-  photoData: null,   // dataURL da foto enviada
-  left: 2            // testes gratuitos restantes
+  selected: [],        // id do corte escolhido (seleção única)
+  activeCut: null,     // corte exibido no resultado
+  photoData: null,     // dataURL da foto enviada
+  generatedImage: null,// dataURL gerado pela IA
+  left: 2              // testes gratuitos restantes
 };
+
+/* ════════════════════════════════════════════════════════════
+   3b. FUNÇÕES DE IA — HairFastGAN via HuggingFace Spaces
+   ════════════════════════════════════════════════════════════ */
+
+/* Converte URL local para dataURL base64 via fetch + FileReader */
+async function imageToBase64(url) {
+  const resp = await fetch(url);
+  const blob = await resp.blob();
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+/* Chama o HairFastGAN no HuggingFace Spaces (Gradio API) */
+async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
+  const SPACE = 'https://airi-institute-hairfastgan.hf.space';
+
+  const payload = {
+    fn_index: 0,
+    data: [
+      { name: 'face.jpg',  data: faceDataUrl,    is_file: false },
+      { name: 'shape.jpg', data: hairRefDataUrl, is_file: false },
+      { name: 'color.jpg', data: hairRefDataUrl, is_file: false },
+      'Article', 0, 15
+    ]
+  };
+
+  const resp = await fetch(`${SPACE}/run/predict`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(150000)  // 2,5 min — Space pode estar dormindo
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    if (resp.status === 503 || txt.toLowerCase().includes('sleep')) {
+      throw new Error('A IA está iniciando. Aguarde 1-2 minutos e tente novamente.');
+    }
+    throw new Error(`Erro ${resp.status} na IA — tente novamente em instantes.`);
+  }
+
+  const json = await resp.json();
+  const out = json.data?.[0];
+  if (!out) throw new Error('A IA não retornou imagem. Tente novamente.');
+
+  return typeof out === 'string' ? out : (out.data ?? out.url ?? null);
+}
+
+/* Salva resultado no Supabase Storage (bucket: simulations) */
+async function saveSimulation(imageDataUrl, cutNome) {
+  const u = typeof bkUser === 'function' ? bkUser() : null;
+  if (!u || !window.supabase || !imageDataUrl) return null;
+  try {
+    const [header, b64] = imageDataUrl.split(',');
+    const mime = header.match(/:(.*?);/)[1];
+    const raw  = atob(b64);
+    const arr  = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    const blob = new Blob([arr], { type: mime });
+
+    const path = `${u.id}/${Date.now()}_${cutNome.replace(/\s+/g, '_')}.jpg`;
+    const { data, error } = await window.supabase.storage
+      .from('simulations').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) return null;
+
+    const { data: pub } = window.supabase.storage.from('simulations').getPublicUrl(data.path);
+    return pub?.publicUrl ?? null;
+  } catch { return null; }
+}
 
 /* ════════════════════════════════════════════════════════════
    4. CATÁLOGO — renderização, abas e seleção
@@ -280,6 +355,7 @@ function updateSelection() {
 
 function clearSel() {
   SIM.selected = [];
+  SIM.generatedImage = null;
   updateSelection();
 }
 
@@ -340,35 +416,53 @@ function checkBtn() {
   document.getElementById('btnSim').disabled = !(SIM.selected.length && SIM.photoData);
 }
 
-/* ── Simulação ─────────────────────────────────────────────── */
-function simulate() {
+/* ── Simulação (IA real — HairFastGAN) ─────────────────────── */
+async function simulate() {
   if (SIM.left <= 0) {
     document.getElementById('paywall').style.display = 'block';
     return;
   }
 
   const btn = document.getElementById('btnSim');
+  const cut  = CUTS.find(c => c.id === SIM.selected[0]);
+  if (!cut || !SIM.photoData) return;
+
   btn.disabled = true;
-  btn.textContent = 'Gerando simulação...';
+  const progress = msg => { btn.textContent = msg; };
 
-  setTimeout(() => {
+  try {
+    progress('Carregando referência do corte...');
+    const hairRef = await imageToBase64(`img/cortes/${cut.id}.png`);
+
+    progress('IA gerando seu corte... ⏳ (30-90s)');
+    const result = await callHairFastGAN(SIM.photoData, hairRef);
+
     SIM.left--;
-    SIM.activeCut = SIM.selected[0];
+    SIM.activeCut      = SIM.selected[0];
+    SIM.generatedImage = result;
 
-    // atualiza a quota
     const plural = SIM.left !== 1 ? 's' : '';
     set('quota', `🤖 ${SIM.left} teste${plural} gratuito${plural} restante${plural} este mês`);
     if (SIM.left === 0) document.getElementById('quota').style.background = 'rgba(229,56,59,.12)';
 
-    btn.textContent = 'Simular com IA ✨';
-    btn.disabled = false;
-
     document.getElementById('uploadStage').style.display = 'none';
     document.getElementById('resultStage').style.display = 'block';
     renderResult();
+
+    // Salva no Supabase Storage em background (não bloqueia a UI)
+    saveSimulation(result, cut.nome).then(url => {
+      if (url) toast('Simulação salva no seu perfil ✓', 'success');
+    });
+
     toast('Simulação concluída! ✨', 'success');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, 2000);
+
+  } catch (err) {
+    toast('❌ ' + (err.message || 'Erro na IA — tente novamente.'), 'error');
+  } finally {
+    progress('Simular com IA ✨');
+    btn.disabled = false;
+  }
 }
 
 /* ── Tela de resultado "Seu novo visual" ───────────────────── */
@@ -385,8 +479,8 @@ function renderResult() {
   }
 
   // antes / depois
-  document.getElementById('beforeImg').src = SIM.photoData;
-  document.getElementById('afterPhoto').src = SIM.photoData;
+  document.getElementById('beforeImg').src  = SIM.photoData;
+  document.getElementById('afterPhoto').src  = SIM.generatedImage || SIM.photoData;
   document.getElementById('afterBadge').innerHTML = cutArt(cut);
 
   // card do corte
