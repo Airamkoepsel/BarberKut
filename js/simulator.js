@@ -280,7 +280,9 @@ const SIM = {
 };
 
 /* ════════════════════════════════════════════════════════════
-   3b. FUNÇÕES DE IA — HairFastGAN via HuggingFace Spaces
+   3b. FUNÇÕES DE IA — InstructPix2Pix via HuggingFace Spaces
+   Modelo de edição guiado por texto: cada corte vira uma
+   instrução em inglês que o modelo aplica à foto do usuário.
    ════════════════════════════════════════════════════════════ */
 
 /* Redimensiona dataURL para max px (canvas) e converte para JPEG */
@@ -312,87 +314,19 @@ async function imageToBase64(url, maxPx = 512) {
   return resizeDataUrl(raw, maxPx);
 }
 
-/* Chama o HairFastGAN via Gradio 4.x (upload + SSE) */
-async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
-  const SPACE = 'https://airi-institute-hairfastgan.hf.space';
+/* Monta a instrução em inglês para o modelo de edição de imagem */
+function buildHairInstruction(cut) {
+  const fadeMap = { alto: 'high fade on sides and back', medio: 'medium fade on sides', baixo: 'low fade on sides' };
+  const beardMap = { cheia: 'with full thick beard', rala: 'with light stubble beard' };
+  const parts = [`Change only the hairstyle to a ${cut.nome}`];
+  if (cut.fade)  parts.push(fadeMap[cut.fade]);
+  if (cut.beard) parts.push(beardMap[cut.beard]);
+  parts.push('Keep the face, skin, eyes, expression, clothing, and background exactly the same. Photorealistic result.');
+  return parts.join('. ');
+}
 
-  /* 1. descobre o nome do endpoint via /info */
-  let apiName = '/predict';
-  try {
-    const infoResp = await fetch(`${SPACE}/info`, { signal: AbortSignal.timeout(12000) });
-    if (infoResp.ok) {
-      const info = await infoResp.json();
-      const endpoints = Object.keys(info.named_endpoints || {});
-      console.log('[BK-SIM] endpoints disponíveis:', endpoints);
-      if (endpoints.length) apiName = endpoints[0];
-    }
-  } catch (e) { console.warn('[BK-SIM] /info falhou:', e.message); }
-
-  console.log('[BK-SIM] usando endpoint:', apiName);
-
-  /* 2. faz upload das imagens (Gradio 4.x exige /upload antes do predict) */
-  const toBlob = async dataUrl => (await fetch(dataUrl)).blob();
-  const [faceBlob, hairBlob] = await Promise.all([
-    toBlob(faceDataUrl), toBlob(hairRefDataUrl)
-  ]);
-
-  const upload = async (blob, name) => {
-    const form = new FormData();
-    form.append('files', blob, name);
-    const r = await fetch(`${SPACE}/upload`, {
-      method: 'POST', body: form, signal: AbortSignal.timeout(30000)
-    });
-    console.log('[BK-SIM] upload', name, '→ status', r.status);
-    if (!r.ok) return null;
-    const paths = await r.json();
-    console.log('[BK-SIM] upload', name, '→ path', paths?.[0]);
-    return paths?.[0] ?? null;
-  };
-
-  const [facePath, hairPath] = await Promise.all([
-    upload(faceBlob, 'face.jpg'),
-    upload(hairBlob, 'hair.jpg')
-  ]);
-
-  if (!facePath || !hairPath)
-    throw new Error('Falha ao enviar imagens para a IA. Tente novamente.');
-
-  /* 3. submete o job → recebe event_id */
-  const submitBody = {
-    data: [
-      { path: facePath }, { path: hairPath }, { path: hairPath },
-      'Article', 0, 15
-    ]
-  };
-  console.log('[BK-SIM] submetendo job para', `${SPACE}/call${apiName}`);
-
-  const submitResp = await fetch(`${SPACE}/call${apiName}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(submitBody),
-    signal: AbortSignal.timeout(30000)
-  });
-
-  console.log('[BK-SIM] submit status:', submitResp.status);
-  if (submitResp.status === 503)
-    throw new Error('A IA está iniciando. Aguarde 1-2 minutos e tente novamente.');
-  if (!submitResp.ok) {
-    const errTxt = await submitResp.text().catch(() => '');
-    console.error('[BK-SIM] submit error body:', errTxt);
-    throw new Error(`Erro ${submitResp.status} ao iniciar a IA.`);
-  }
-
-  const submitJson = await submitResp.json();
-  const { event_id } = submitJson;
-  console.log('[BK-SIM] event_id:', event_id);
-  if (!event_id) throw new Error('IA não respondeu com ID de processamento.');
-
-  /* 4. lê o SSE stream até receber o resultado */
-  console.log('[BK-SIM] aguardando SSE...');
-  const streamResp = await fetch(`${SPACE}/call${apiName}/${event_id}`, {
-    signal: AbortSignal.timeout(180000) // 3 min para gerar
-  });
-
+/* Helper: lê SSE stream Gradio 4.x e retorna a primeira URL de imagem */
+async function _readGradioSSE(streamResp, space) {
   const reader  = streamResp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -405,26 +339,79 @@ async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
     for (const line of buffer.split('\n')) {
       if (!line.startsWith('data: ')) continue;
       const raw = line.slice(6).trim();
-      if (raw === 'null' || !raw) continue;
+      if (!raw || raw === 'null') continue;
       try {
         const parsed = JSON.parse(raw);
-        console.log('[BK-SIM] SSE data:', JSON.stringify(parsed).slice(0, 120));
-        const arr = Array.isArray(parsed) ? parsed
-                  : (parsed.output?.data ?? null);
+        console.log('[BK-SIM] SSE:', JSON.stringify(parsed).slice(0, 120));
+        const arr = Array.isArray(parsed) ? parsed : (parsed.output?.data ?? null);
         if (!arr) continue;
         const out = arr[0];
         const url = out?.url || out?.path || (typeof out === 'string' ? out : null);
         if (url) {
-          console.log('[BK-SIM] imagem recebida:', url);
           reader.cancel();
-          return url.startsWith('http') ? url : `${SPACE}/file=${url}`;
+          return url.startsWith('http') ? url : `${space}/file=${url}`;
         }
-      } catch { /* linha incompleta, aguarda próximo chunk */ }
+      } catch { /* chunk incompleto */ }
     }
     buffer = buffer.includes('\n') ? buffer.slice(buffer.lastIndexOf('\n') + 1) : buffer;
   }
-
   throw new Error('A IA finalizou sem retornar imagem. Tente novamente.');
+}
+
+/* Fluxo Gradio 4.x: /info → /upload → /call → SSE */
+async function _gradio4Call(space, faceDataUrl, data) {
+  // 1. descobre endpoint
+  let apiName = '/predict';
+  try {
+    const r = await fetch(`${space}/info`, { signal: AbortSignal.timeout(12000) });
+    if (r.ok) {
+      const names = Object.keys((await r.json()).named_endpoints || {});
+      if (names.length) apiName = names[0];
+    }
+  } catch {}
+  console.log('[BK-SIM] endpoint:', space + apiName);
+
+  // 2. upload da foto do usuário
+  const faceBlob = await (await fetch(faceDataUrl)).blob();
+  const form = new FormData();
+  form.append('files', faceBlob, 'face.jpg');
+  const upResp = await fetch(`${space}/upload`, { method:'POST', body:form, signal:AbortSignal.timeout(30000) });
+  if (!upResp.ok) throw new Error(`Upload falhou (${upResp.status}). Tente novamente.`);
+  const [facePath] = await upResp.json();
+  console.log('[BK-SIM] facePath:', facePath);
+
+  // 3. submete job (primeiro item dos dados é a imagem)
+  const payload = { data: [{ path: facePath }, ...data] };
+  const subResp = await fetch(`${space}/call${apiName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30000)
+  });
+  if (subResp.status === 503) throw new Error('A IA está iniciando. Aguarde 1-2 min e tente novamente.');
+  if (!subResp.ok) throw new Error(`Erro ${subResp.status} ao iniciar a IA.`);
+  const { event_id } = await subResp.json();
+  if (!event_id) throw new Error('IA não retornou ID de processamento.');
+  console.log('[BK-SIM] event_id:', event_id);
+
+  // 4. lê resultado via SSE
+  const streamResp = await fetch(`${space}/call${apiName}/${event_id}`, {
+    signal: AbortSignal.timeout(180000)
+  });
+  return _readGradioSSE(streamResp, space);
+}
+
+/* Edita a foto com InstructPix2Pix guiado pelo nome/descrição do corte */
+async function callHairFastGAN(faceDataUrl, cut) {
+  const instruction = buildHairInstruction(cut);
+  console.log('[BK-SIM] instrução:', instruction);
+
+  // InstructPix2Pix: [imagem, instrução, steps, text_cfg, image_cfg]
+  return _gradio4Call(
+    'https://timbrooks-instruct-pix2pix.hf.space',
+    faceDataUrl,
+    [instruction, 50, 7.5, 1.5]
+  );
 }
 
 /* Salva resultado no Supabase Storage (bucket: simulations) */
@@ -598,12 +585,9 @@ async function simulate() {
   const progress = msg => { btn.textContent = msg; };
 
   try {
-    progress('Carregando referência do corte...');
-    const hairRef  = await imageToBase64(`img/cortes/${cut.id}.png`, 512);
-
-    progress('IA gerando seu corte... ⏳ (30-90s)');
+    progress('IA analisando seu rosto... ⏳ (30-90s)');
     const faceImg  = await resizeDataUrl(SIM.photoData, 512);
-    const result   = await callHairFastGAN(faceImg, hairRef);
+    const result   = await callHairFastGAN(faceImg, cut);
 
     console.log('[BK-SIM] resultado da IA:', result);
 
