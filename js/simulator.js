@@ -283,52 +283,67 @@ const SIM = {
    3b. FUNÇÕES DE IA — HairFastGAN via HuggingFace Spaces
    ════════════════════════════════════════════════════════════ */
 
-/* Converte URL local para dataURL base64 via fetch + FileReader */
-async function imageToBase64(url) {
+/* Redimensiona dataURL para max px (canvas) e converte para JPEG */
+async function resizeDataUrl(dataUrl, maxPx = 512) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width  = Math.round(img.width  * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      res(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.src = dataUrl;
+  });
+}
+
+/* Converte URL local → base64 redimensionado */
+async function imageToBase64(url, maxPx = 512) {
   const resp = await fetch(url);
   const blob = await resp.blob();
-  return new Promise((res, rej) => {
+  const raw  = await new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(r.result);
     r.onerror = rej;
     r.readAsDataURL(blob);
   });
+  return resizeDataUrl(raw, maxPx);
 }
 
-/* Chama o HairFastGAN no HuggingFace Spaces (Gradio API) */
+/* Chama o HairFastGAN — tenta fn_index 0 e 1, formato base64 puro */
 async function callHairFastGAN(faceDataUrl, hairRefDataUrl) {
   const SPACE = 'https://airi-institute-hairfastgan.hf.space';
 
-  const payload = {
-    fn_index: 0,
-    data: [
-      { name: 'face.jpg',  data: faceDataUrl,    is_file: false },
-      { name: 'shape.jpg', data: hairRefDataUrl, is_file: false },
-      { name: 'color.jpg', data: hairRefDataUrl, is_file: false },
-      'Article', 0, 15
-    ]
-  };
+  for (const fn_index of [0, 1, 2]) {
+    try {
+      const resp = await fetch(`${SPACE}/run/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fn_index,
+          data: [faceDataUrl, hairRefDataUrl, hairRefDataUrl, 'Article', 0, 15]
+        }),
+        signal: AbortSignal.timeout(150000)
+      });
 
-  const resp = await fetch(`${SPACE}/run/predict`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(150000)  // 2,5 min — Space pode estar dormindo
-  });
+      if (resp.status === 503) throw new Error('sleeping');
+      if (!resp.ok) continue;  // tenta próximo fn_index
 
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '');
-    if (resp.status === 503 || txt.toLowerCase().includes('sleep')) {
-      throw new Error('A IA está iniciando. Aguarde 1-2 minutos e tente novamente.');
+      const json = await resp.json();
+      const out  = json.data?.[0];
+      if (!out) continue;
+
+      const result = typeof out === 'string' ? out : (out.data ?? out.url ?? null);
+      if (result) return result;
+    } catch (e) {
+      if (e.message === 'sleeping')
+        throw new Error('A IA está iniciando. Aguarde 1-2 minutos e tente novamente.');
+      if (fn_index === 2) throw e;
     }
-    throw new Error(`Erro ${resp.status} na IA — tente novamente em instantes.`);
   }
-
-  const json = await resp.json();
-  const out = json.data?.[0];
-  if (!out) throw new Error('A IA não retornou imagem. Tente novamente.');
-
-  return typeof out === 'string' ? out : (out.data ?? out.url ?? null);
+  throw new Error('IA temporariamente indisponível. Tente novamente em instantes.');
 }
 
 /* Salva resultado no Supabase Storage (bucket: simulations) */
@@ -503,10 +518,11 @@ async function simulate() {
 
   try {
     progress('Carregando referência do corte...');
-    const hairRef = await imageToBase64(`img/cortes/${cut.id}.png`);
+    const hairRef  = await imageToBase64(`img/cortes/${cut.id}.png`, 512);
 
     progress('IA gerando seu corte... ⏳ (30-90s)');
-    const result = await callHairFastGAN(SIM.photoData, hairRef);
+    const faceImg  = await resizeDataUrl(SIM.photoData, 512);
+    const result   = await callHairFastGAN(faceImg, hairRef);
 
     SIM.left--;
     SIM.activeCut      = SIM.selected[0];
