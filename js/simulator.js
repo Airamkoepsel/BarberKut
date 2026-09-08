@@ -419,7 +419,7 @@ async function _gradioCall(space, faceDataUrl, extraData) {
 }
 
 /* ── Token da HuggingFace Inference API (conta gratuita em huggingface.co) ── */
-const HF_TOKEN = 'hf_COLOQUE_SEU_TOKEN_AQUI';
+const HF_TOKEN = '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';
 
 /* Edita a foto via HuggingFace Inference API (InstructPix2Pix) */
 async function callHairFastGAN(faceDataUrl, cut) {
