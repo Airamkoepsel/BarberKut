@@ -406,7 +406,53 @@ async function alignFace1024(dataUrl) {
   );
   ctx.drawImage(img, 0, 0);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  return canvas.toDataURL('image/jpeg', 0.92);
+  // devolve também a matriz do recorte, para recompor o resultado depois
+  return {
+    aligned: canvas.toDataURL('image/jpeg', 0.92),
+    m: { a, b, c, d, ox: o.x, oy: o.y }
+  };
+}
+
+/* Devolve o resultado da IA ao enquadramento da foto original.
+   O modelo trabalha num recorte fechado no rosto; sem recompor, o
+   "depois" sairia bem mais aproximado que o "antes". As bordas do
+   recorte são suavizadas para a emenda não aparecer. */
+async function recomporNaFoto(originalDataUrl, resultUrl, m) {
+  const orig = await loadImage(originalDataUrl);
+  const res  = await loadImage(resultUrl);
+  const S = 1024;
+
+  const rec = document.createElement('canvas');
+  rec.width = rec.height = S;
+  const rc = rec.getContext('2d');
+  rc.drawImage(res, 0, 0, S, S);
+
+  const mask = document.createElement('canvas');
+  mask.width = mask.height = S;
+  const mk = mask.getContext('2d');
+  mk.fillStyle = '#fff';
+  mk.fillRect(0, 0, S, S);
+  mk.globalCompositeOperation = 'destination-out';
+  const banda = S * 0.10;
+  for (const [x0, y0, x1, y1] of [[0,0,banda,0], [S,0,S-banda,0], [0,0,0,banda], [0,S,0,S-banda]]) {
+    const g = mk.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    mk.fillStyle = g;
+    mk.fillRect(0, 0, S, S);
+  }
+  rc.globalCompositeOperation = 'destination-in';
+  rc.drawImage(mask, 0, 0);
+
+  const out = document.createElement('canvas');
+  out.width  = orig.width;
+  out.height = orig.height;
+  const oc = out.getContext('2d');
+  oc.drawImage(orig, 0, 0);
+  oc.setTransform(m.a, m.b, m.c, m.d, m.ox, m.oy);
+  oc.drawImage(rec, 0, 0);
+  oc.setTransform(1, 0, 0, 1, 0, 0);
+  return out.toDataURL('image/jpeg', 0.92);
 }
 
 /* Space público do HairFastGAN — gratuito, sem token */
@@ -478,17 +524,17 @@ async function callHairFastGAN(faceDataUrl, cut) {
     throw new Error(`O corte "${cut.nome}" ainda não tem foto de referência.`);
   }
 
-  const faceSq = await alignFace1024(faceDataUrl);
+  const face = await alignFace1024(faceDataUrl);
 
-  let shapeSq;
+  let shape;
   try {
-    shapeSq = await alignFace1024(await blobToDataUrl(await refResp.blob()));
+    shape = await alignFace1024(await blobToDataUrl(await refResp.blob()));
   } catch {
     throw new Error(`A foto de referência do corte "${cut.nome}" não tem um rosto detectável.`);
   }
 
-  const faceBlob  = await (await fetch(faceSq)).blob();
-  const shapeBlob = await (await fetch(shapeSq)).blob();
+  const faceBlob  = await (await fetch(face.aligned)).blob();
+  const shapeBlob = await (await fetch(shape.aligned)).blob();
   const [facePath, shapePath] = await _uploadToSpace([faceBlob, shapeBlob]);
 
   const subResp = await fetch(`${HAIR_SPACE}/call/swap_hair`, {
@@ -509,7 +555,8 @@ async function callHairFastGAN(faceDataUrl, cut) {
   const streamResp = await fetch(`${HAIR_SPACE}/call/swap_hair/${event_id}`, {
     signal: AbortSignal.timeout(240000)
   });
-  return _readGradioSSE(streamResp);
+  const resultUrl = await _readGradioSSE(streamResp);
+  return recomporNaFoto(faceDataUrl, resultUrl, face.m);
 }
 
 /* Salva resultado no Supabase Storage (bucket: simulations) */
