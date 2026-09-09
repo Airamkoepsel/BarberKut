@@ -347,9 +347,15 @@ async function alignFace1024(dataUrl) {
   await loadFaceApi();
   const img = await loadImage(dataUrl);
 
-  const det = await faceapi
-    .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 }))
-    .withFaceLandmarks();
+  // O detector é sensível à escala: rosto grande no quadro sai melhor em
+  // 320, rosto pequeno precisa de mais resolução. Tenta em ordem.
+  let det = null;
+  for (const inputSize of [320, 512, 608]) {
+    det = await faceapi
+      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: 0.25 }))
+      .withFaceLandmarks();
+    if (det) break;
+  }
   if (!det) throw new Error('Não achei um rosto nítido na foto. Use uma foto de frente, com boa luz.');
 
   const p = det.landmarks.positions;
