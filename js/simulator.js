@@ -297,35 +297,6 @@ const SIM = {
    do usuário, preservando rosto, pele e cor natural do cabelo.
    ════════════════════════════════════════════════════════════ */
 
-/* O backend do HairFastGAN só aceita imagens de exatamente 1024x1024;
-   qualquer outro tamanho faz a chamada falhar sem mensagem de erro.
-   'cover'   preenche o quadrado cortando as sobras — usado na foto do
-             usuário, para o resultado não sair com faixas brancas.
-   'contain' encaixa a imagem inteira — usado na referência, para nunca
-             cortar o topo do cabelo, que é justamente o que interessa. */
-function squareTo1024(dataUrl, mode = 'cover') {
-  return new Promise(res => {
-    const img = new Image();
-    img.onload = () => {
-      const S = 1024;
-      const c = document.createElement('canvas');
-      c.width = c.height = S;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, S, S);
-
-      const scale = mode === 'cover'
-        ? S / Math.min(img.width, img.height)
-        : S / Math.max(img.width, img.height);
-      const w = img.width * scale;
-      const h = img.height * scale;
-      ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
-      res(c.toDataURL('image/jpeg', 0.92));
-    };
-    img.src = dataUrl;
-  });
-}
-
 /* Converte Blob em dataURL */
 function blobToDataUrl(blob) {
   return new Promise(res => {
@@ -333,6 +304,97 @@ function blobToDataUrl(blob) {
     fr.onload = () => res(fr.result);
     fr.readAsDataURL(blob);
   });
+}
+
+function loadImage(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload  = () => res(img);
+    img.onerror = () => rej(new Error('Não foi possível carregar a imagem.'));
+    img.src = src;
+  });
+}
+
+/* ── Alinhamento facial (padrão FFHQ) ─────────────────────────
+   O HairFastGAN exige o rosto centralizado, nivelado e em 1024x1024.
+   O Space tem endpoints de alinhamento, mas eles estão fora do ar
+   (falham até com as imagens de exemplo dele mesmo), então fazemos
+   o alinhamento aqui: os 68 pontos do rosto definem um quadrado
+   girado a partir dos olhos e da boca, que é recortado e esticado.
+   Sem esta etapa o modelo cola o cabelo torto sobre o rosto.
+   A biblioteca só é baixada quando o usuário simula de fato.       */
+const FACEAPI_LIB    = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
+const FACEAPI_MODELS = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+let _faceReady = null;
+
+function loadFaceApi() {
+  if (_faceReady) return _faceReady;
+  _faceReady = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = FACEAPI_LIB;
+    s.onload  = res;
+    s.onerror = () => rej(new Error('Falha ao carregar a detecção facial.'));
+    document.head.appendChild(s);
+  }).then(() => Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri(FACEAPI_MODELS),
+    faceapi.nets.faceLandmark68Net.loadFromUri(FACEAPI_MODELS)
+  ]));
+  return _faceReady;
+}
+
+async function alignFace1024(dataUrl) {
+  await loadFaceApi();
+  const img = await loadImage(dataUrl);
+
+  const det = await faceapi
+    .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 }))
+    .withFaceLandmarks();
+  if (!det) throw new Error('Não achei um rosto nítido na foto. Use uma foto de frente, com boa luz.');
+
+  const p = det.landmarks.positions;
+  const media = (ini, fim) => {
+    let sx = 0, sy = 0;
+    for (let i = ini; i < fim; i++) { sx += p[i].x; sy += p[i].y; }
+    return { x: sx / (fim - ini), y: sy / (fim - ini) };
+  };
+
+  const olhoE = media(36, 42);
+  const olhoD = media(42, 48);
+  const olhos = { x: (olhoE.x + olhoD.x) / 2, y: (olhoE.y + olhoD.y) / 2 };
+  const e2e   = { x: olhoD.x - olhoE.x, y: olhoD.y - olhoE.y };
+  const boca  = { x: (p[48].x + p[54].x) / 2, y: (p[48].y + p[54].y) / 2 };
+  const e2b   = { x: boca.x - olhos.x, y: boca.y - olhos.y };
+
+  let vx = { x: e2e.x + e2b.y, y: e2e.y - e2b.x };
+  const norma = Math.hypot(vx.x, vx.y);
+  const lado  = Math.max(Math.hypot(e2e.x, e2e.y) * 2.0, Math.hypot(e2b.x, e2b.y) * 1.8);
+  vx = { x: vx.x / norma * lado, y: vx.y / norma * lado };
+  const vy = { x: -vx.y, y: vx.x };
+  const centro = { x: olhos.x + e2b.x * 0.1, y: olhos.y + e2b.y * 0.1 };
+
+  // Canto superior esquerdo do recorte e os vetores que percorrem o quadrado
+  const S = 1024;
+  const o = { x: centro.x - vx.x - vy.x, y: centro.y - vx.y - vy.y };
+  const a = 2 * vx.x / S, b = 2 * vx.y / S;
+  const c = 2 * vy.x / S, d = 2 * vy.y / S;
+  const det2 = a * d - c * b;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = S;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, S, S);
+  // inverte a matriz do recorte para desenhar a origem no quadrado de saída
+  ctx.setTransform(
+    d / det2, -b / det2,
+    -c / det2, a / det2,
+    (c * o.y - d * o.x) / det2,
+    (b * o.x - a * o.y) / det2
+  );
+  ctx.drawImage(img, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.92);
 }
 
 /* Space público do HairFastGAN — gratuito, sem token */
@@ -404,8 +466,14 @@ async function callHairFastGAN(faceDataUrl, cut) {
     throw new Error(`O corte "${cut.nome}" ainda não tem foto de referência.`);
   }
 
-  const faceSq  = await squareTo1024(faceDataUrl, 'cover');
-  const shapeSq = await squareTo1024(await blobToDataUrl(await refResp.blob()), 'contain');
+  const faceSq = await alignFace1024(faceDataUrl);
+
+  let shapeSq;
+  try {
+    shapeSq = await alignFace1024(await blobToDataUrl(await refResp.blob()));
+  } catch {
+    throw new Error(`A foto de referência do corte "${cut.nome}" não tem um rosto detectável.`);
+  }
 
   const faceBlob  = await (await fetch(faceSq)).blob();
   const shapeBlob = await (await fetch(shapeSq)).blob();
