@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      # O schema já existe no Supabase (supabase-schema.sql) e é gerenciado por lá.
+      # O Hibernate NUNCA deve criar, alterar ou apagar tabelas.
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: public
+    show-sql: false
+
+supabase:
+  # Settings -> API -> JWT Settings -> JWT Secret, no painel do Supabase.
+  jwt-secret: ${SUPABASE_JWT_SECRET}
+
+server:
+  port: ${PORT:8080}
