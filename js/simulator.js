@@ -389,8 +389,14 @@ async function alignFace1024(dataUrl) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = S;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, S, S);
+  // Quando o recorte passa da borda da foto, sobra área vazia. Preenche
+  // com a própria imagem desfocada: em branco o modelo trata a faixa como
+  // parte da cena e devolve um retângulo claro colado no rosto.
+  const cobre = S / Math.min(img.width, img.height);
+  const cw = img.width * cobre, ch = img.height * cobre;
+  ctx.filter = 'blur(48px)';
+  ctx.drawImage(img, (S - cw) / 2, (S - ch) / 2, cw, ch);
+  ctx.filter = 'none';
   // inverte a matriz do recorte para desenhar a origem no quadrado de saída
   ctx.setTransform(
     d / det2, -b / det2,
