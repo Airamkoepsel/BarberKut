@@ -213,15 +213,27 @@ const SHAPES = {
 /* Cabelos que ficam ATRÁS do rosto (longos) */
 const BEHIND = ['long', 'medium'];
 
-/* ── Arte do corte: usa a imagem se o id tiver foto, senão SVG ─
-   Como os ids provisórios são foto01..foto20, o arquivo tem o
-   mesmo nome do id. Quando você renomear os cortes, basta manter
-   este padrão ou ajustar o caminho abaixo.                       */
+/* ── Arte do corte, em ordem de preferência ───────────────────
+   1) img/ref/<id>.jpg   — foto real, a mesma que a IA usa
+   2) img/cortes/<id>.png — desenho do catálogo
+   3) avatar SVG desenhado em código
+   Os arquivos têm o mesmo nome do id do corte.                  */
 function cutArt(cut) {
-  // tenta sempre carregar img/cortes/<id>.png; se não existir, cai no SVG via onerror
-  return `<img src="img/cortes/${cut.id}.png" alt="${cut.nome}" loading="lazy"
-           style="width:100%;height:100%;object-fit:contain;display:block"
-           onerror="this.parentElement.innerHTML=window.cutSVG ? cutSVG(${JSON.stringify(cut).replace(/"/g,'&quot;')}) : ''"/>`;
+  const json = JSON.stringify(cut).replace(/"/g, '&quot;');
+  return `<img src="img/ref/${cut.id}.jpg" alt="${cut.nome}" loading="lazy"
+           style="width:100%;height:100%;object-fit:cover;display:block"
+           onerror="cutArtFallback(this, ${json})"/>`;
+}
+
+/* Desce um degrau na lista de fallbacks quando a imagem não carrega */
+function cutArtFallback(img, cut) {
+  if (!img.dataset.semFoto) {
+    img.dataset.semFoto = '1';
+    img.style.objectFit = 'contain';
+    img.src = `img/cortes/${cut.id}.png`;
+    return;
+  }
+  img.parentElement.innerHTML = window.cutSVG ? cutSVG(cut) : '';
 }
 
 /* Monta o SVG completo do avatar de um corte (fallback) */
