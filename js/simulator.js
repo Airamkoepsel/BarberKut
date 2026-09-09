@@ -280,24 +280,46 @@ const SIM = {
 };
 
 /* ════════════════════════════════════════════════════════════
-   3b. FUNÇÕES DE IA — InstructPix2Pix via HuggingFace Spaces
-   Modelo de edição guiado por texto: cada corte vira uma
-   instrução em inglês que o modelo aplica à foto do usuário.
+   3b. FUNÇÕES DE IA — HairFastGAN via HuggingFace Spaces
+   Transfere o cabelo de uma foto de referência para a foto
+   do usuário, preservando rosto, pele e cor natural do cabelo.
    ════════════════════════════════════════════════════════════ */
 
-/* Redimensiona dataURL para max px (canvas) e converte para JPEG */
-async function resizeDataUrl(dataUrl, maxPx = 512) {
+/* O backend do HairFastGAN só aceita imagens de exatamente 1024x1024;
+   qualquer outro tamanho faz a chamada falhar sem mensagem de erro.
+   'cover'   preenche o quadrado cortando as sobras — usado na foto do
+             usuário, para o resultado não sair com faixas brancas.
+   'contain' encaixa a imagem inteira — usado na referência, para nunca
+             cortar o topo do cabelo, que é justamente o que interessa. */
+function squareTo1024(dataUrl, mode = 'cover') {
   return new Promise(res => {
     const img = new Image();
     img.onload = () => {
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const S = 1024;
       const c = document.createElement('canvas');
-      c.width  = Math.round(img.width  * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      res(c.toDataURL('image/jpeg', 0.82));
+      c.width = c.height = S;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, S, S);
+
+      const scale = mode === 'cover'
+        ? S / Math.min(img.width, img.height)
+        : S / Math.max(img.width, img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+      res(c.toDataURL('image/jpeg', 0.92));
     };
     img.src = dataUrl;
+  });
+}
+
+/* Converte Blob em dataURL */
+function blobToDataUrl(blob) {
+  return new Promise(res => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.readAsDataURL(blob);
   });
 }
 
@@ -370,8 +392,11 @@ async function callHairFastGAN(faceDataUrl, cut) {
     throw new Error(`O corte "${cut.nome}" ainda não tem foto de referência.`);
   }
 
-  const faceBlob  = await (await fetch(faceDataUrl)).blob();
-  const shapeBlob = await refResp.blob();
+  const faceSq  = await squareTo1024(faceDataUrl, 'cover');
+  const shapeSq = await squareTo1024(await blobToDataUrl(await refResp.blob()), 'contain');
+
+  const faceBlob  = await (await fetch(faceSq)).blob();
+  const shapeBlob = await (await fetch(shapeSq)).blob();
   const [facePath, shapePath] = await _uploadToSpace([faceBlob, shapeBlob]);
 
   const subResp = await fetch(`${HAIR_SPACE}/call/swap_hair`, {
@@ -567,8 +592,7 @@ async function simulate() {
 
   try {
     progress('IA analisando seu rosto... ⏳ (30-90s)');
-    const faceImg  = await resizeDataUrl(SIM.photoData, 1024);
-    const result   = await callHairFastGAN(faceImg, cut);
+    const result   = await callHairFastGAN(SIM.photoData, cut);
 
     console.log('[BK-SIM] resultado da IA:', result);
 
