@@ -78,7 +78,7 @@ function updateSidebarBtn() {
   if (btn) btn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
 }
 
-/* ── Agenda real do Supabase ───────────────────────────────── */
+/* ── Agenda real da API Java ────────────────────────────────── */
 async function loadShopFilter() {
   const sel = document.getElementById('shopFilter');
   if (!sel || !window.supabase) {
@@ -86,7 +86,15 @@ async function loadShopFilter() {
     loadAgenda();
     return;
   }
-  const { data: shops } = await window.supabase.from('shops').select('id, name').order('name');
+  let shops;
+  try {
+    shops = await bkApiFetch('/api/shops/mine');
+  } catch (err) {
+    console.error('[BarberKut] Erro ao carregar barbearias:', err);
+    sel.innerHTML = '<option value="">Nenhuma barbearia cadastrada</option>';
+    loadAgenda();
+    return;
+  }
   if (!shops || !shops.length) {
     sel.innerHTML = '<option value="">Nenhuma barbearia cadastrada</option>';
     loadAgenda();
@@ -109,22 +117,22 @@ async function loadAgenda() {
     return;
   }
 
-  let query = window.supabase
-    .from('appointments')
-    .select('*, profiles(name)')
-    .eq('status', 'confirmed')
-    .order('appointment_date', { ascending: false })
-    .order('appointment_time', { ascending: true });
-
   const shopId = sel ? sel.value : '';
-  if (shopId) query = query.eq('shop_id', shopId);
-
-  const { data: appts } = await query.limit(50);
-  const list = appts || [];
+  let list;
+  try {
+    list = await bkApiFetch('/api/appointments/admin' + (shopId ? '?shopId=' + encodeURIComponent(shopId) : ''));
+  } catch (err) {
+    console.error('[BarberKut] Erro ao carregar agenda:', err);
+    el.innerHTML = '<div class="empty-state"><div class="empty-state__icon">⚠️</div><p>Erro ao carregar a agenda.</p></div>';
+    return;
+  }
+  list = list || [];
 
   // Stats
-  const hoje = new Date().toLocaleDateString('pt-BR', { weekday:'short', day:'numeric', month:'short' });
-  const hojeAppts = list.filter(a => a.appointment_date === hoje);
+  const pad = n => String(n).padStart(2, '0');
+  const now = new Date();
+  const hojeIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const hojeAppts = list.filter(a => a.appointmentDate === hojeIso);
   const fatHoje   = hojeAppts.reduce((s, a) => s + (a.price || 0), 0);
   set('statHoje',  hojeAppts.length);
   set('statFat',   'R$ ' + fatHoje.toFixed(0));
@@ -139,15 +147,15 @@ async function loadAgenda() {
   }
 
   el.innerHTML = list.map(a => {
-    const cliente = a.profiles?.name || 'Cliente';
+    const cliente = a.clientName || 'Cliente';
     const status  = a.status === 'confirmed' ? '⏳ Aguardando' : a.status === 'completed' ? '✓ Concluído' : '✕ Cancelado';
     const cls     = a.status === 'completed' ? ' schedule-event--green' : a.status === 'cancelled' ? ' schedule-event--red' : '';
     return `<div class="sched-row">
-      <div class="sched-time">${a.appointment_time || '—'}</div>
+      <div class="sched-time">${(a.appointmentTime || '—').slice(0, 5)}</div>
       <div class="schedule-event${cls}">
         <div class="schedule-event__client">${cliente} <span style="opacity:.8;font-size:var(--text-xs)">${status}</span></div>
-        <div class="schedule-event__service">${a.service} · ${a.shop_name} · R$ ${a.price || 0}</div>
-        <div style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:4px">${a.appointment_date || ''}</div>
+        <div class="schedule-event__service">${a.service} · ${a.shopName} · R$ ${a.price || 0}</div>
+        <div style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:4px">${a.appointmentDate || ''}</div>
         ${a.status === 'confirmed' ? `<div style="margin-top:var(--space-2);display:flex;gap:var(--space-2)">
           <button class="btn btn--sm" style="background:var(--color-green);color:#fff;padding:4px 10px;font-size:11px" onclick="updateAppt(${a.id},'completed')">✓ Concluir</button>
           <button class="btn btn--sm btn--ghost" style="font-size:11px" onclick="updateAppt(${a.id},'cancelled')">✕ Cancelar</button>
@@ -159,7 +167,12 @@ async function loadAgenda() {
 
 async function updateAppt(id, status) {
   if (!window.supabase) return;
-  await window.supabase.from('appointments').update({ status }).eq('id', id);
+  try {
+    await bkApiFetch(`/api/appointments/${id}/status`, { method: 'PATCH', body: { status } });
+  } catch (err) {
+    toast(err.message || 'Não foi possível atualizar o agendamento.', 'error');
+    return;
+  }
   toast(status === 'completed' ? 'Agendamento concluído ✓' : 'Agendamento cancelado', status === 'completed' ? 'success' : 'info');
   loadAgenda();
 }

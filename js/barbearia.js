@@ -14,57 +14,57 @@ const WEEKDAY_LABELS = {
 
 let SHOP = null;   // barbearia atual
 
-/* ── Carrega barbearia do Supabase (para shops cadastrados via formulário) ── */
-async function loadShopFromSupabase(id) {
-  if (!window.supabase) return null;
+/* ── Carrega barbearia da API Java (para shops cadastrados via formulário) ── */
+async function loadShopFromApi(id) {
   try {
-    const [{ data: shop }, { data: svcs }, { data: barbers }, { data: hrs }, { data: amen }] =
-      await Promise.all([
-        window.supabase.from('shops').select('*').eq('id', id).single(),
-        window.supabase.from('services').select('*').eq('shop_id', id),
-        window.supabase.from('barbers').select('*').eq('shop_id', id),
-        window.supabase.from('shop_hours').select('*').eq('shop_id', id),
-        window.supabase.from('shop_amenities').select('*').eq('shop_id', id),
-      ]);
-    if (!shop) return null;
+    const shop = await bkApiFetch(`/api/shops/${encodeURIComponent(id)}`, { auth: false });
+    return mapShopDetailToViewModel(shop);
+  } catch (err) {
+    console.error('[BarberKut] Erro ao carregar barbearia:', err);
+    return null;
+  }
+}
 
-    const hoursMap = {};
-    (hrs || []).forEach(h => {
-      hoursMap[h.weekday] = h.is_open ? [h.open_time.slice(0,5), h.close_time.slice(0,5)] : null;
-    });
+/* Converte o ShopDetailResponse da API pro formato que as funções renderX()
+   abaixo já esperam (o mesmo formato usado pelas barbearias estáticas de data.js). */
+function mapShopDetailToViewModel(shop) {
+  const hoursMap = {};
+  (shop.hours || []).forEach(h => {
+    hoursMap[h.weekday] = (h.openTime && h.closeTime) ? [h.openTime, h.closeTime] : null;
+  });
 
-    return {
-      id: shop.id, name: shop.name, tagline: shop.tagline || '',
-      cover: shop.cover || 'bc-g1', icon: shop.icon || '✂',
-      rating: shop.rating || 5.0, reviews_count: shop.reviews_count || 0,
-      price_from: shop.price_from || 0, established: shop.established || new Date().getFullYear(),
-      is_open: shop.is_open, verified: shop.verified || false,
-      phone: shop.phone || '', instagram: shop.instagram || '',
-      about: shop.about || 'Barbearia cadastrada na BarberKut.',
-      rating_breakdown: { 5:0, 4:0, 3:0, 2:0, 1:0 },
-      gallery: [], reviews: [],
-      address: {
-        street: (shop.address || {}).street || '',
-        district: (shop.address || {}).district || '',
-        city: (shop.address || {}).city || 'Timbó',
-        state: (shop.address || {}).state || 'SC',
-        lat: (shop.address || {}).lat || -26.8230,
-        lng: (shop.address || {}).lng || -49.2710,
-        distance_km: (shop.address || {}).distance_km || '—'
-      },
-      hours: hoursMap,
-      amenities: (amen || []).map(a => a.amenity),
-      services: (svcs || []).map(sv => ({
-        name: sv.name, desc: sv.description || '', price: sv.price,
-        duration: sv.duration, popular: sv.is_popular || false
-      })),
-      barbers: (barbers || []).map(b => ({
-        name: b.name,
-        initials: b.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase(),
-        role: b.role || 'Barbeiro', specialty: b.specialty || '', rating: b.rating || 4.5
-      }))
-    };
-  } catch { return null; }
+  return {
+    id: shop.id, name: shop.name, tagline: shop.tagline || '',
+    cover: shop.cover || 'bc-g1', icon: shop.icon || '✂',
+    rating: shop.rating || 5.0, reviews_count: shop.reviewsCount || 0,
+    price_from: shop.priceFrom || 0, established: shop.established || new Date().getFullYear(),
+    is_open: shop.open, opens_at: shop.opensAt, verified: shop.verified || false,
+    phone: shop.phone || '', instagram: shop.instagram || '',
+    about: shop.about || 'Barbearia cadastrada na BarberKut.',
+    rating_breakdown: shop.ratingBreakdown || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+    gallery: (shop.photos || []).map(p => ({ grad: p.grad, icon: p.icon })),
+    reviews: (shop.reviews || []).map(r => ({
+      initials: r.initials, author: r.author, service: r.service,
+      date: r.reviewDate, rating: r.rating, text: r.body
+    })),
+    address: {
+      street: shop.street || '', district: shop.district || '',
+      city: shop.city || 'Timbó', state: shop.state || 'SC',
+      lat: shop.lat || -26.8230, lng: shop.lng || -49.2710,
+      distance_km: shop.distanceKm || '—'
+    },
+    hours: hoursMap,
+    amenities: shop.amenities || [],
+    services: (shop.services || []).map(sv => ({
+      name: sv.name, desc: sv.description || '', price: sv.price,
+      duration: sv.durationMin, popular: sv.popular || false
+    })),
+    barbers: (shop.barbers || []).map(b => ({
+      name: b.name,
+      initials: b.initials || b.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+      role: b.role || 'Barbeiro', specialty: b.specialty || '', rating: b.rating || 4.5
+    }))
+  };
 }
 
 /* ── Inicialização ─────────────────────────────────────────── */
@@ -72,8 +72,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const id = new URLSearchParams(location.search).get('id');
   SHOP = (window.getShopById && getShopById(id)) || null;
 
-  // Se não achou no data.js, tenta no Supabase (barbearias cadastradas pelo formulário)
-  if (!SHOP) SHOP = await loadShopFromSupabase(id);
+  // Se não achou no data.js, tenta na API (barbearias cadastradas pelo formulário)
+  if (!SHOP) SHOP = await loadShopFromApi(id);
 
   if (!SHOP) {
     document.getElementById('shopNotFound').style.display = 'block';
@@ -328,18 +328,33 @@ function bookService(name) {
   location.href = `booking.html?shop=${SHOP.id}&service=${encodeURIComponent(name)}`;
 }
 
-/* Favoritar — já funciona client-side via localStorage */
+/* Favoritar — localStorage sempre (cache local pro botão), + API quando logado */
 function getFavs() {
   try { return JSON.parse(localStorage.getItem('bk-favs') || '[]'); }
   catch { return []; }
 }
-function toggleFav() {
+async function toggleFav() {
   const favs = getFavs();
   const i = favs.indexOf(SHOP.id);
-  if (i >= 0) { favs.splice(i, 1); toast('Removido dos favoritos', 'info'); }
-  else { favs.push(SHOP.id); toast('Adicionado aos favoritos ❤', 'success'); }
+  const nowFav = i < 0;
+
+  if (nowFav) favs.push(SHOP.id); else favs.splice(i, 1);
   localStorage.setItem('bk-favs', JSON.stringify(favs));
   refreshFavBtn();
+  toast(nowFav ? 'Adicionado aos favoritos ❤' : 'Removido dos favoritos', nowFav ? 'success' : 'info');
+
+  const u = (typeof bkUser === 'function') ? bkUser() : null;
+  if (u && window.supabase) {
+    try {
+      if (nowFav) {
+        await bkApiFetch('/api/favorites', { method: 'POST', body: { shopId: SHOP.id } });
+      } else {
+        await bkApiFetch(`/api/favorites/${encodeURIComponent(SHOP.id)}`, { method: 'DELETE' });
+      }
+    } catch (err) {
+      console.error('[BarberKut] Erro ao sincronizar favorito:', err);
+    }
+  }
 }
 function refreshFavBtn() {
   const btn = document.getElementById('favBtn');

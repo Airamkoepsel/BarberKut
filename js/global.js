@@ -100,21 +100,22 @@ function bkLogout() {
     if (event === 'SIGNED_IN' && session) {
       const cached = bkUser();
       if (!cached || cached.id !== session.user.id) {
-        window.supabase.from('profiles').select('*').eq('id', session.user.id).single()
-          .then(({ data }) => {
+        bkApiFetch('/api/profiles/me')
+          .then((data) => {
             if (!data) return;
             const user = {
               id:       session.user.id,
               name:     data.name,
               email:    session.user.email,
               phone:    data.phone || '',
-              photo:    data.photo_url || null,
+              photo:    data.photoUrl || null,
               initials: bkInitials(data.name),
               since:    new Date(session.user.created_at).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
             };
             bkSaveUser(user);
             _syncNav();
-          });
+          })
+          .catch((err) => console.error('[BarberKut] Erro ao carregar perfil:', err));
       }
     }
   });

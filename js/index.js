@@ -173,13 +173,14 @@ const _KNOWN_NAMES = new Set(
 const _GRADS = ['bc-g1','bc-g2','bc-g3','bc-g4','bc-g5','bc-g6'];
 const _ICONS = ['✂','💈','🪒'];
 
-async function loadShopsFromSupabase() {
-  if (!window.supabase) return;
-  const { data: shops } = await window.supabase
-    .from('shops')
-    .select('id, name, rating, reviews_count, price_from, is_open, address, icon, cover')
-    .order('created_at', { ascending: false });
-
+async function loadShopsFromApi() {
+  let shops;
+  try {
+    shops = await bkApiFetch('/api/shops', { auth: false });
+  } catch (err) {
+    console.error('[BarberKut] Erro ao carregar barbearias:', err);
+    return;
+  }
   if (!shops || !shops.length) return;
 
   const grid = document.getElementById('barbershopGrid');
@@ -189,11 +190,10 @@ async function loadShopsFromSupabase() {
   shops.forEach((shop, i) => {
     if (_KNOWN_NAMES.has(shop.name)) return; // evita duplicar shops do data.js
 
-    const isOpen  = shop.is_open !== false;
-    const tags    = `todos${isOpen ? ' aberto' : ''}${(shop.rating || 0) >= 4.8 ? ' top' : ''}${(shop.price_from || 99) <= 35 ? ' barato' : ''}`;
-    const addr    = shop.address || {};
-    const distStr = addr.distance_km ? ' · ' + addr.distance_km + ' km' : '';
-    const distStr2 = addr.district   ? ' · ' + addr.district             : '';
+    const isOpen  = shop.open !== false;
+    const tags    = `todos${isOpen ? ' aberto' : ''}${(shop.rating || 0) >= 4.8 ? ' top' : ''}${(shop.priceFrom || 99) <= 35 ? ' barato' : ''}`;
+    const distStr = shop.distanceKm ? ' · ' + shop.distanceKm + ' km' : '';
+    const distStr2 = shop.district  ? ' · ' + shop.district           : '';
     const grad    = shop.cover || _GRADS[(i + 6) % 6];
     const icon    = shop.icon  || _ICONS[i % 3];
 
@@ -213,13 +213,13 @@ async function loadShopsFromSupabase() {
         <h5 class="barbershop-card__name">${shop.name}</h5>
         <div class="barbershop-card__meta">
           <span class="barbershop-card__rating">★ ${(shop.rating || 5).toFixed(1)}
-            <span style="font-weight:400;color:var(--color-text-muted)">(${shop.reviews_count || 0})</span>
+            <span style="font-weight:400;color:var(--color-text-muted)">(${shop.reviewsCount || 0})</span>
           </span>
           <span>${distStr}${distStr2}</span>
         </div>
         <div class="barbershop-card__footer">
           <span style="font-size:var(--text-sm);color:var(--color-text-muted)">
-            A partir de <strong style="color:var(--color-navy)">R$ ${shop.price_from || 0}</strong>
+            A partir de <strong style="color:var(--color-navy)">R$ ${shop.priceFrom || 0}</strong>
           </span>
           <span class="btn btn--primary btn--sm">Agendar</span>
         </div>
@@ -234,6 +234,6 @@ async function loadShopsFromSupabase() {
 /* Inicializa o mapa quando a página carregar */
 document.addEventListener('DOMContentLoaded', () => {
   initMapa();
-  loadShopsFromSupabase();
+  loadShopsFromApi();
 });
 

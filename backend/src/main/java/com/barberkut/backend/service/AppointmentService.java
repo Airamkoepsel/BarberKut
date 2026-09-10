@@ -1,10 +1,19 @@
 package com.barberkut.backend.service;
 
 import com.barberkut.backend.entity.Appointment;
+import com.barberkut.backend.entity.Shop;
+import com.barberkut.backend.exception.AppointmentAccessDeniedException;
 import com.barberkut.backend.exception.AppointmentConflictException;
+import com.barberkut.backend.exception.AppointmentNotFoundException;
+import com.barberkut.backend.exception.ShopAccessDeniedException;
+import com.barberkut.backend.exception.ShopNotFoundException;
 import com.barberkut.backend.repository.AppointmentRepository;
+import com.barberkut.backend.repository.ShopRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
 
 @Service
 public class AppointmentService {
@@ -13,9 +22,11 @@ public class AppointmentService {
     private static final String STATUS_CONFIRMED = "confirmed";
 
     private final AppointmentRepository appointmentRepository;
+    private final ShopRepository shopRepository;
 
-    public AppointmentService(AppointmentRepository appointmentRepository) {
+    public AppointmentService(AppointmentRepository appointmentRepository, ShopRepository shopRepository) {
         this.appointmentRepository = appointmentRepository;
+        this.shopRepository = shopRepository;
     }
 
     /**
@@ -23,13 +34,11 @@ public class AppointmentService {
      * naquela barbearia, data e horário. Agendamentos cancelados não contam
      * como conflito.
      *
-     * NOTA: esta checagem é "verifica-depois-insere" em nível de aplicação.
-     * Sob duas requisições concorrentes para o mesmo horário, ambas podem
-     * passar pela checagem antes de qualquer commit, causando um conflito
-     * real no banco. A correção definitiva é um índice único parcial no
-     * Postgres (shop_id, barber, appointment_date, appointment_time onde
-     * status <> 'cancelled') — a propor junto do P1.5, que já migra essas
-     * colunas de text para date/time.
+     * NOTA: esta checagem em si é "verifica-depois-insere" em nível de
+     * aplicação — sob concorrência, duas requisições poderiam passar pela
+     * checagem antes de qualquer commit. Isso é coberto pelo índice único
+     * parcial criado na migration do P1.5 (appointments_no_double_booking),
+     * que faz o INSERT concorrente falhar no banco em vez de criar o conflito.
      */
     @Transactional
     public Appointment schedule(Appointment appointment) {
@@ -52,5 +61,59 @@ public class AppointmentService {
         }
 
         return appointmentRepository.save(appointment);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Appointment> findMine(UUID userId) {
+        return appointmentRepository.findByUser_IdOrderByCreatedAtDesc(userId);
+    }
+
+    @Transactional
+    public Appointment cancel(Long appointmentId, UUID userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new AppointmentNotFoundException(appointmentId));
+
+        if (!appointment.getUser().getId().equals(userId)) {
+            throw new AppointmentAccessDeniedException();
+        }
+
+        appointment.setStatus(STATUS_CANCELLED);
+        return appointment;
+    }
+
+    /**
+     * Agenda de agendamentos confirmados pro dono de barbearia (P2.10).
+     * Sem shopId, cobre todas as barbearias do dono; com shopId, essa
+     * barbearia precisa pertencer a ele.
+     */
+    @Transactional(readOnly = true)
+    public List<Appointment> agendaForOwner(UUID ownerId, String shopId) {
+        if (shopId == null || shopId.isBlank()) {
+            return appointmentRepository
+                    .findTop50ByShop_Owner_IdAndStatusOrderByAppointmentDateDescAppointmentTimeAsc(ownerId, STATUS_CONFIRMED);
+        }
+
+        Shop shop = shopRepository.findById(shopId)
+                .orElseThrow(() -> new ShopNotFoundException(shopId));
+        assertOwnedBy(shop, ownerId);
+
+        return appointmentRepository
+                .findTop50ByShop_IdAndShop_Owner_IdAndStatusOrderByAppointmentDateDescAppointmentTimeAsc(shopId, ownerId, STATUS_CONFIRMED);
+    }
+
+    @Transactional
+    public Appointment updateStatusAsOwner(Long appointmentId, UUID ownerId, String status) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new AppointmentNotFoundException(appointmentId));
+        assertOwnedBy(appointment.getShop(), ownerId);
+
+        appointment.setStatus(status);
+        return appointment;
+    }
+
+    private static void assertOwnedBy(Shop shop, UUID ownerId) {
+        if (shop.getOwner() == null || !shop.getOwner().getId().equals(ownerId)) {
+            throw new ShopAccessDeniedException();
+        }
     }
 }

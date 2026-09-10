@@ -19,29 +19,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderStats();
 });
 
-/* Agendamentos: Supabase se logado, fallback localStorage */
+/* Agendamentos: API Java se logado, fallback localStorage */
 async function _appts() {
   const u = bkUser();
   if (u && window.supabase) {
-    const { data } = await window.supabase
-      .from('appointments').select('*')
-      .eq('user_id', u.id).order('created_at', { ascending: false });
-    return (data || []).map(a => ({
-      id: a.id, shopId: a.shop_id, shopName: a.shop_name, service: a.service,
-      price: a.price, barber: a.barber, date: a.appointment_date, time: a.appointment_time,
-      status: a.status
-    }));
+    try {
+      const data = await bkApiFetch('/api/appointments/me');
+      return (data || []).map(a => ({
+        id: a.id, shopId: a.shopId, shopName: a.shopName, service: a.service,
+        price: a.price, barber: a.barber, date: a.appointmentDate, time: a.appointmentTime,
+        status: a.status
+      }));
+    } catch (err) {
+      console.error('[BarberKut] Erro ao carregar agendamentos:', err);
+      return [];
+    }
   }
   try { return JSON.parse(localStorage.getItem('bk-appointments') || '[]'); } catch { return []; }
 }
 
-/* Favoritos: Supabase se logado, fallback localStorage */
+/* Favoritos: API Java se logado, fallback localStorage */
 async function _favs() {
   const u = bkUser();
   if (u && window.supabase) {
-    const { data } = await window.supabase
-      .from('favorites').select('shop_id').eq('user_id', u.id);
-    return (data || []).map(f => f.shop_id);
+    try {
+      const shops = await bkApiFetch('/api/favorites/me');
+      return (shops || []).map(s => s.id);
+    } catch (err) {
+      console.error('[BarberKut] Erro ao carregar favoritos:', err);
+      return [];
+    }
   }
   try { return JSON.parse(localStorage.getItem('bk-favs') || '[]'); } catch { return []; }
 }
@@ -106,7 +113,12 @@ async function renderAppointments() {
 async function cancelAppt(idx, supabaseId) {
   const u = bkUser();
   if (u && window.supabase && supabaseId) {
-    await window.supabase.from('appointments').update({ status: 'cancelled' }).eq('id', supabaseId);
+    try {
+      await bkApiFetch(`/api/appointments/${encodeURIComponent(supabaseId)}/cancel`, { method: 'PATCH' });
+    } catch (err) {
+      toast(err.message || 'Não foi possível cancelar o agendamento.', 'error');
+      return;
+    }
   } else {
     const list = JSON.parse(localStorage.getItem('bk-appointments') || '[]');
     list.splice(idx, 1);
@@ -149,7 +161,12 @@ async function renderFavorites() {
 async function removeFav(id) {
   const u = bkUser();
   if (u && window.supabase) {
-    await window.supabase.from('favorites').delete().match({ user_id: u.id, shop_id: id });
+    try {
+      await bkApiFetch(`/api/favorites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (err) {
+      toast(err.message || 'Não foi possível remover dos favoritos.', 'error');
+      return;
+    }
   } else {
     const favs = (await _favs()).filter(x => x !== id);
     localStorage.setItem('bk-favs', JSON.stringify(favs));
@@ -206,12 +223,19 @@ async function saveProfile() {
   u.phone = document.getElementById('editPhone').value.trim();
   if (_editPhoto !== undefined) u.photo = _editPhoto;
   u.initials = bkInitials(u.name);
-  bkSaveUser(u);
+
   if (u.id && window.supabase) {
-    await window.supabase.from('profiles')
-      .update({ name: u.name, phone: u.phone, photo_url: u.photo || null })
-      .eq('id', u.id);
+    try {
+      await bkApiFetch('/api/profiles/me', {
+        method: 'PATCH',
+        body: { name: u.name, phone: u.phone, photoUrl: u.photo || null }
+      });
+    } catch (err) {
+      toast(err.message || 'Não foi possível atualizar o perfil.', 'error');
+      return;
+    }
   }
+  bkSaveUser(u);
   closeModal('mEdit');
   toast('Perfil atualizado ✓', 'success');
   renderHeader(u);

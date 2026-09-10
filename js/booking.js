@@ -172,7 +172,9 @@ function pickDay(el, dia) {
   document.querySelectorAll('.booking-calendar__day').forEach(x => x.classList.remove('selected'));
   el.classList.add('selected');
   const dt = new Date(cal.y, cal.m, dia);
-  B.date = dt.toLocaleDateString('pt-BR', { weekday:'short', day:'numeric', month:'short' });
+  const pad = n => String(n).padStart(2, '0');
+  B.date    = dt.toLocaleDateString('pt-BR', { weekday:'short', day:'numeric', month:'short' });
+  B.dateIso = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`; // pra API (date real, com ano)
   set('rDate', B.date);
   document.getElementById('timeSection').style.display = 'block';
 }
@@ -210,24 +212,31 @@ async function confirmBooking() {
     }
   }
   const user = (typeof bkUser === 'function') ? bkUser() : null;
-  const appt = {
-    shop_id:          SHOP_CTX ? SHOP_CTX.id   : 'central',
-    shop_name:        SHOP_CTX ? SHOP_CTX.name : 'Barbearia Central',
-    service:          B.svc,
-    price:            B.price,
-    barber:           B.barber,
-    appointment_date: B.date,
-    appointment_time: B.time
-  };
+  const shopId   = SHOP_CTX ? SHOP_CTX.id   : 'central';
+  const shopName = SHOP_CTX ? SHOP_CTX.name : 'Barbearia Central';
 
   if (user && window.supabase) {
-    await window.supabase.from('appointments').insert({ ...appt, user_id: user.id });
+    try {
+      await bkApiFetch('/api/appointments', {
+        method: 'POST',
+        body: {
+          shopId:          shopId,
+          service:         B.svc,
+          price:           B.price,
+          barber:          B.barber,
+          appointmentDate: B.dateIso,
+          appointmentTime: B.time
+        }
+      });
+    } catch (err) {
+      toast(err.message || 'Não foi possível confirmar o agendamento.', 'error');
+      return;
+    }
   } else {
     try {
       const list = JSON.parse(localStorage.getItem('bk-appointments') || '[]');
-      list.unshift({ shopId: appt.shop_id, shopName: appt.shop_name, service: appt.service,
-        price: appt.price, barber: appt.barber, date: appt.appointment_date,
-        time: appt.appointment_time, createdAt: Date.now() });
+      list.unshift({ shopId: shopId, shopName: shopName, service: B.svc,
+        price: B.price, barber: B.barber, date: B.date, time: B.time, createdAt: Date.now() });
       localStorage.setItem('bk-appointments', JSON.stringify(list));
     } catch (_) {}
   }

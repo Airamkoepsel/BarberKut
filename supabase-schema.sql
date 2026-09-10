@@ -124,11 +124,17 @@ CREATE TABLE IF NOT EXISTS public.appointments (
   service          text,
   price            int,
   barber           text,
-  appointment_date text,
-  appointment_time text,
+  appointment_date date NOT NULL,
+  appointment_time time NOT NULL,
   status           text DEFAULT 'confirmed', -- confirmed | cancelled | completed
   created_at       timestamptz DEFAULT now()
 );
+
+-- Impede dois agendamentos ativos pro mesmo barbeiro na mesma barbearia/data/hora.
+-- Agendamentos cancelados não contam (por isso o índice é parcial).
+CREATE UNIQUE INDEX IF NOT EXISTS appointments_no_double_booking
+  ON public.appointments (shop_id, barber, appointment_date, appointment_time)
+  WHERE status <> 'cancelled';
 
 -- ============================================================
 -- SEED: dados das 6 barbearias de Timbó

@@ -138,72 +138,64 @@ async function submitShop() {
   const services = collectServices();
   if (!services.length) { toast('Adicione ao menos um serviço.', 'error'); return; }
 
-  const name   = val('fName');
-  const covers = ['bc-g1', 'bc-g2', 'bc-g3', 'bc-g4', 'bc-g5', 'bc-g6'];
-  const id     = _slug(name) + '-' + Math.random().toString(36).slice(2, 6);
-  const slug   = _slug(name);
-  const hours  = collectHours();
-  const amens  = collectAmenities();
-  const user   = (typeof bkUser === 'function') ? bkUser() : null;
+  const name  = val('fName');
+  const hours = collectHours();
+  const amens = collectAmenities();
+  const user  = (typeof bkUser === 'function') ? bkUser() : null;
 
-  const shopData = {
-    id, slug, name,
-    tagline:       val('fTagline') || 'Nova barbearia na BarberKut.',
-    cover:         covers[Math.floor(Math.random() * covers.length)],
-    icon:          val('fIcon') || '✂',
-    rating:        5.0,
-    reviews_count: 0,
-    price_from:    Math.min(...services.map(s => s.price)),
-    established:   new Date().getFullYear(),
-    is_open:       true,
-    verified:      false,
-    phone:         val('fPhone'),
-    instagram:     val('fInsta').replace('@', ''),
-    about:         val('fAbout') || val('fTagline') || 'Barbearia recém-cadastrada na BarberKut.',
-    street:        val('fStreet'),
-    district:      val('fDistrict'),
-    city:          val('fCity') || 'Timbó',
-    state:         (val('fState') || 'SC').toUpperCase(),
-    lat:           -26.823 + (Math.random() - 0.5) * 0.02,
-    lng:           -49.271 + (Math.random() - 0.5) * 0.02,
-    distance_km:   +(Math.random() * 3 + 0.2).toFixed(1),
-    rating_breakdown: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
-    owner_id:      user?.id || null
-  };
+  let id;
 
-  if (window.supabase) {
-    const { error } = await window.supabase.from('shops').insert(shopData);
-    if (error) { toast('Erro ao salvar: ' + error.message, 'error'); return; }
+  if (user && window.supabase) {
+    // Dono vem do token (JWT), backend decide id/slug/rating/verified/etc.
+    const payload = {
+      name,
+      tagline:   val('fTagline'),
+      icon:      val('fIcon'),
+      phone:     val('fPhone'),
+      instagram: val('fInsta').replace('@', ''),
+      about:     val('fAbout') || val('fTagline'),
+      street:    val('fStreet'),
+      district:  val('fDistrict'),
+      city:      val('fCity') || 'Timbó',
+      state:     (val('fState') || 'SC').toUpperCase(),
+      hours,
+      amenities: amens,
+      services:  services.map(s => ({ name: s.name, price: s.price, durationMin: s.duration }))
+    };
 
-    // Horários
-    const hoursRows = Object.entries(hours).map(([weekday, val]) => ({
-      shop_id: id, weekday,
-      open_time:  val ? val[0] : null,
-      close_time: val ? val[1] : null
-    }));
-    await window.supabase.from('shop_hours').insert(hoursRows);
-
-    // Comodidades
-    if (amens.length) {
-      await window.supabase.from('shop_amenities').insert(amens.map(a => ({ shop_id: id, amenity: a })));
+    try {
+      const created = await bkApiFetch('/api/shops', { method: 'POST', body: payload });
+      id = created.id;
+    } catch (err) {
+      toast('Erro ao salvar: ' + err.message, 'error');
+      return;
     }
-
-    // Serviços
-    await window.supabase.from('services').insert(
-      services.map((s, i) => ({ shop_id: id, name: s.name, price: s.price, duration_min: s.duration, sort_order: i + 1 }))
-    );
-
-    // Barbeiro padrão
-    await window.supabase.from('barbers').insert({
-      shop_id: id, name: 'Responsável', role: 'Proprietário',
-      initials: bkInitials(name), rating: 5.0, specialty: 'Atendimento geral'
-    });
   } else {
-    // Fallback localStorage
+    // Sem login: fica só no localStorage (registrar barbearia de verdade exige conta)
+    const covers = ['bc-g1', 'bc-g2', 'bc-g3', 'bc-g4', 'bc-g5', 'bc-g6'];
+    id = _slug(name) + '-' + Math.random().toString(36).slice(2, 6);
     const shop = {
-      ...shopData,
-      address: { street: shopData.street, district: shopData.district, city: shopData.city,
-        state: shopData.state, lat: shopData.lat, lng: shopData.lng, distance_km: shopData.distance_km },
+      id, slug: _slug(name), name,
+      tagline:       val('fTagline') || 'Nova barbearia na BarberKut.',
+      cover:         covers[Math.floor(Math.random() * covers.length)],
+      icon:          val('fIcon') || '✂',
+      rating:        5.0,
+      reviews_count: 0,
+      price_from:    Math.min(...services.map(s => s.price)),
+      established:   new Date().getFullYear(),
+      is_open:       true,
+      verified:      false,
+      phone:         val('fPhone'),
+      instagram:     val('fInsta').replace('@', ''),
+      about:         val('fAbout') || val('fTagline') || 'Barbearia recém-cadastrada na BarberKut.',
+      address: {
+        street: val('fStreet'), district: val('fDistrict'), city: val('fCity') || 'Timbó',
+        state: (val('fState') || 'SC').toUpperCase(),
+        lat: -26.823 + (Math.random() - 0.5) * 0.02,
+        lng: -49.271 + (Math.random() - 0.5) * 0.02,
+        distance_km: +(Math.random() * 3 + 0.2).toFixed(1)
+      },
+      rating_breakdown: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
       hours, amenities: amens, gallery: [], services,
       barbers: [{ name: 'Responsável', role: 'Proprietário', initials: bkInitials(name), rating: 5.0, specialty: 'Atendimento geral' }],
       reviews: []

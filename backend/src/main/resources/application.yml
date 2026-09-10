@@ -1,6 +1,9 @@
 spring:
   application:
     name: backend
+  mvc:
+    problemdetails:
+      enabled: true
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}

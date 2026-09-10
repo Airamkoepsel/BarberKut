@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.http.HttpMethod;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -26,9 +27,9 @@ import java.util.List;
  * não há JWKS público nesse esquema — por isso o decoder usa uma chave simétrica
  * em vez de buscar chaves públicas por URL.
  *
- * Por padrão toda requisição exige um token válido. Endpoints públicos (ex:
- * leitura de barbearias, que hoje tem policy de leitura pública no RLS) serão
- * liberados explicitamente quando os controllers forem criados (P1.6).
+ * Por padrão toda requisição exige um token válido. As rotas de leitura
+ * pública de barbearias (mesmas cobertas pelas policies "*_public_read" do
+ * RLS) e a documentação Swagger são liberadas explicitamente abaixo.
  */
 @Configuration
 @EnableWebSecurity
@@ -45,7 +46,19 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth
+                        // Mais específico primeiro: /mine e /admin são de usuário, não podem
+                        // cair nas regras públicas mais genéricas abaixo (primeira regra que
+                        // casa vence, no Spring Security).
+                        .requestMatchers(HttpMethod.GET, "/api/shops/mine", "/api/appointments/admin")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/shops", "/api/shops/*", "/api/shops/*/disponibilidade")
+                        .permitAll()
+                        .requestMatchers(
+                                "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                        .permitAll()
+                        .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
                                 .decoder(jwtDecoder())

@@ -18,12 +18,10 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
-/**
- * Espelha public.appointments. appointment_date/appointment_time continuam
- * String porque a coluna ainda é text no banco — migrar junto com o P1.5
- * (quando a coluna virar date/time no schema).
- */
+/** Espelha public.appointments. */
 @Entity
 @Table(name = "appointments")
 @Getter
@@ -62,11 +60,11 @@ public class Appointment {
     @Column(name = "barber")
     private String barber;
 
-    @Column(name = "appointment_date")
-    private String appointmentDate;
+    @Column(name = "appointment_date", nullable = false)
+    private LocalDate appointmentDate;
 
-    @Column(name = "appointment_time")
-    private String appointmentTime;
+    @Column(name = "appointment_time", nullable = false)
+    private LocalTime appointmentTime;
 
     @Column(name = "status")
     private String status;
